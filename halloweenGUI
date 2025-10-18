@@ -827,6 +827,61 @@ do
 })
 end
 
+-- Weapon Spawner Functions
+local function getrandombox()
+    local success, boxes = pcall(function()
+        return require(game:GetService("ReplicatedStorage").Database.Sync.MysteryBox)
+    end)
+    
+    if not success or not boxes or next(boxes) == nil then 
+        return "StandardBox"
+    end
+    
+    local keys = {}
+    for k, _ in pairs(boxes) do
+        table.insert(keys, k)
+    end
+    return keys[math.random(1, #keys)]
+end
+
+local function opencrate(ITEM_NAME)
+    local success = pcall(function()
+        local boxmodule = require(game:GetService("ReplicatedStorage").Modules.BoxModule)
+        local itemdatabase = require(game:GetService("ReplicatedStorage").Database.Sync.Item)
+        
+        if ITEM_NAME and itemdatabase[ITEM_NAME] then
+            print("=== OPENCRATE FUNCTION ===")
+            print("Spawning:", ITEM_NAME)
+            print("Using Random Box")
+            print("========================")
+            boxmodule.OpenBox(getrandombox(), ITEM_NAME)
+            
+            -- Add visual item to inventory
+            local success2 = pcall(function()
+                local poop = getsenv(game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.Inventory.NewItem)._G
+                poop.NewItem(ITEM_NAME, nil, nil, "Weapons", 1)
+            end)
+            
+            WindUI:Notify({
+                Title = "✅ Success",
+                Content = "Successfully spawned: " .. ITEM_NAME .. "! ⚔️"
+            })
+        else
+            WindUI:Notify({
+                Title = "❌ Error",
+                Content = "Invalid item: " .. ITEM_NAME .. "! ⚔️"
+            })
+        end
+    end)
+    
+    if not success then
+        WindUI:Notify({
+            Title = "❌ Error",
+            Content = "Error opening crate for: " .. ITEM_NAME .. "! ⚔️"
+        })
+    end
+end
+
 -- */  Spawner Tab  /* --
 do
     -- Weapon Spawner Section
@@ -846,6 +901,7 @@ do
         Placeholder = "Enter weapon name (e.g., CandyBlade)",
         Callback = function(value)
             weaponName = value
+            print("Weapon name updated to:", weaponName)
         end
     })
     
@@ -857,12 +913,14 @@ do
             {Title = "Christmas2024Box", Icon = "gift"},
             {Title = "StandardBox", Icon = "package"},
             {Title = "MysteryBox", Icon = "help-circle"},
-            {Title = "PremiumBox", Icon = "star"}
+            {Title = "PremiumBox", Icon = "star"},
+            {Title = "Random Box", Icon = "shuffle"}
         },
         Value = "Christmas2024Box",
         Callback = function(option)
             selectedCrate = option.Title
-    end
+            print("Crate type updated to:", selectedCrate)
+        end
 })
 
     SpawnerTab:Button({
@@ -870,95 +928,88 @@ do
         Color = PurpleTheme.Success,
         Icon = "sword",
         Callback = function()
+            print("=== SPAWN BUTTON CLICKED ===")
+            print("Weapon Name:", weaponName)
+            print("Selected Crate:", selectedCrate)
+            print("============================")
+            
             if weaponName ~= "" then
+                WindUI:Notify({
+                    Title = "🔄 Processing",
+                    Content = "Attempting to spawn: " .. weaponName .. " ⚔️"
+                })
+                
                 local success = pcall(function()
-                    -- Try multiple possible paths for the modules
-                    local boxModule = nil
-                    local itemDatabase = nil
+                    local boxmodule = require(game:GetService("ReplicatedStorage").Modules.BoxModule)
+                    local itemdatabase = require(game:GetService("ReplicatedStorage").Database.Sync.Item)
                     
-                    -- Try different possible locations for BoxModule
-                    local boxPaths = {
-                        "ReplicatedStorage.Modules.BoxModule",
-                        "ReplicatedStorage.Modules.Box",
-                        "ReplicatedStorage.BoxModule",
-                        "ReplicatedStorage.Box"
-                    }
-                    
-                    for _, path in ipairs(boxPaths) do
-                        local success, result = pcall(function()
-                            return require(game:GetService("ReplicatedStorage"):FindFirstChild(path:split(".")[2]):FindFirstChild(path:split(".")[3]))
-                        end)
-                        if success and result then
-                            boxModule = result
-                            break
-                        end
-                    end
-                    
-                    -- Try different possible locations for Item Database
-                    local itemPaths = {
-                        "ReplicatedStorage.Database.Sync.Item",
-                        "ReplicatedStorage.Database.Item",
-                        "ReplicatedStorage.Items",
-                        "ReplicatedStorage.ItemDatabase"
-                    }
-                    
-                    for _, path in ipairs(itemPaths) do
-                        local success, result = pcall(function()
-                            local parts = path:split(".")
-                            local current = game:GetService("ReplicatedStorage")
-                            for i = 2, #parts do
-                                current = current:FindFirstChild(parts[i])
-                                if not current then return nil end
-                            end
-                            return require(current)
-                        end)
-                        if success and result then
-                            itemDatabase = result
-                            break
-                        end
-                    end
-                    
-                    if boxModule and itemDatabase then
-                        -- Check if weapon exists in database
-                        local weaponExists = false
-                        for itemName, _ in pairs(itemDatabase) do
+                    -- Try exact match first
+                    local foundWeapon = itemdatabase[weaponName]
+                    if not foundWeapon then
+                        -- Try case-insensitive match
+                        for itemName, itemData in pairs(itemdatabase) do
                             if string.lower(itemName) == string.lower(weaponName) then
-                                weaponExists = true
+                                foundWeapon = itemData
+                                weaponName = itemName -- Use the correct case
                                 break
                             end
                         end
-                        
-                        if weaponExists then
-                            -- Try to open the box
-                            local openSuccess = pcall(function()
-                                if boxModule.OpenBox then
-                                    boxModule.OpenBox(selectedCrate, weaponName)
-                                elseif boxModule.Open then
-                                    boxModule.Open(selectedCrate, weaponName)
-                                end
-                            end)
-                            
-                            if openSuccess then
-                                WindUI:Notify({
-                                    Title = "✅ Success",
-                                    Content = "Successfully spawned: " .. weaponName .. "! ⚔️"
-                                })
-                            else
-                                WindUI:Notify({
-                                    Title = "⚠️ Warning",
-                                    Content = "Weapon found but spawn failed. Try a different crate! ⚔️"
-        })
-    end
-                        else
-                            WindUI:Notify({
-                                Title = "❌ Error",
-                                Content = "Weapon '" .. weaponName .. "' not found in database! ⚔️"
-                            })
+                    end
+                    
+                    if not foundWeapon then
+                        -- Try partial match
+                        for itemName, itemData in pairs(itemdatabase) do
+                            if string.find(string.lower(itemName), string.lower(weaponName)) then
+                                foundWeapon = itemData
+                                weaponName = itemName -- Use the correct name
+                                break
+                            end
                         end
-                    else
+                    end
+                    
+                    if foundWeapon then
+                        local crateToUse = selectedCrate == "Random Box" and getrandombox() or selectedCrate
+                        
+                        print("=== WEAPON SPAWNED ===")
+                        print("Weapon Name:", weaponName)
+                        print("Crate Used:", crateToUse)
+                        print("===================")
+                        
+                        -- Try to open the box
+                        local openSuccess = pcall(function()
+                            boxmodule.OpenBox(crateToUse, weaponName)
+                        end)
+                        
+                        if openSuccess then
+                            print("Box opened successfully!")
+                        else
+                            print("Failed to open box with crate:", crateToUse)
+                        end
+                        
+                        -- Add visual item to inventory
+                        local success2 = pcall(function()
+                            local poop = getsenv(game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.Inventory.NewItem)._G
+                            poop.NewItem(weaponName, nil, nil, "Weapons", 1)
+                        end)
+                        
                         WindUI:Notify({
-                            Title = "❌ Error",
-                            Content = "Could not find required game modules! ⚔️"
+                            Title = "✅ Success",
+                            Content = "Successfully spawned: " .. weaponName .. "! ⚔️"
+                        })
+                    else
+                        -- Show some available weapons for reference
+                        local availableWeapons = {}
+                        local count = 0
+                        for itemName, _ in pairs(itemdatabase) do
+                            if count < 5 then
+                                table.insert(availableWeapons, itemName)
+                                count = count + 1
+                            end
+                        end
+                        
+                        WindUI:Notify({
+                            Title = "❌ Weapon Not Found",
+                            Content = "Weapon '" .. weaponName .. "' not found! Try: " .. table.concat(availableWeapons, ", ") .. " ⚔️"
                         })
                     end
                 end)
@@ -966,15 +1017,81 @@ do
                 if not success then
                     WindUI:Notify({
                         Title = "❌ Error",
-                        Content = "Failed to spawn weapon. Game may have updated! ⚔️"
-        })
-    end
+                        Content = "Failed to spawn weapon. Check console for details! ⚔️"
+                    })
+                end
             else
                 WindUI:Notify({
                     Title = "❌ Error",
                     Content = "Please enter a weapon name! ⚔️"
                 })
             end
+        end
+    })
+    
+    SpawnerTab:Button({
+        Title = "🎲 Spawn Random Weapon",
+        Color = PurpleTheme.Accent,
+        Icon = "shuffle",
+        Callback = function()
+            local success = pcall(function()
+                local itemdatabase = require(game:GetService("ReplicatedStorage").Database.Sync.Item)
+                local weapons = {}
+                
+                for weaponName, _ in pairs(itemdatabase) do
+                    table.insert(weapons, weaponName)
+                end
+                
+                if #weapons > 0 then
+                    local randomWeapon = weapons[math.random(1, #weapons)]
+                    print("=== RANDOM WEAPON SPAWNED ===")
+                    print("Random Weapon:", randomWeapon)
+                    print("=============================")
+                    opencrate(randomWeapon)
+                else
+                    WindUI:Notify({
+                        Title = "❌ Error",
+                        Content = "No weapons found in database! ⚔️"
+                    })
+                end
+            end)
+            
+            if not success then
+                WindUI:Notify({
+                    Title = "❌ Error",
+                    Content = "Failed to get random weapon! ⚔️"
+                })
+            end
+        end
+    })
+    
+    SpawnerTab:Button({
+        Title = "⚔️ Spawn XenoKnife",
+        Color = PurpleTheme.Primary,
+        Icon = "sword",
+        Callback = function()
+            print("=== SPAWNING XENOKNIFE ===")
+            opencrate("XenoKnife")
+        end
+    })
+    
+    SpawnerTab:Button({
+        Title = "🔫 Spawn XenoGun",
+        Color = PurpleTheme.Secondary,
+        Icon = "gun",
+        Callback = function()
+            print("=== SPAWNING XENOGUN ===")
+            opencrate("XenoGun")
+        end
+    })
+    
+    SpawnerTab:Button({
+        Title = "💎 Spawn Battlepass Godly (Raygun)",
+        Color = PurpleTheme.Warning,
+        Icon = "star",
+        Callback = function()
+            print("=== SPAWNING RAYGUN ===")
+            opencrate("Raygun")
         end
     })
 end
