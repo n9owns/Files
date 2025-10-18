@@ -90,12 +90,15 @@ local coinESPEnabled = false
 local tracers = {}
 
 -- Auto Farm Variables
-local autoFarmEnabled = false
-local autoCollectCoins = false
-local autoCollectGuns = false
-local autoCollectKnives = false
-local autoCollectCandy = false
+local autoFarmCoins = false
+local autoFarmCandy = false
 local candyESPEnabled = false
+local autoEndRound = false
+
+-- Coin Farm Variables
+local visitedPositions = {}
+local flySpeed = 15
+local collected = 0
 
 -- Character Settings
 local CharacterSettings = {
@@ -254,54 +257,69 @@ local function updateCharacter()
     end
 end
 
--- Auto Farm Functions
-local function autoCollectLoop()
-    if not autoFarmEnabled then return end
-    
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local rootPart = character.HumanoidRootPart
-    
-    -- Auto collect coins
-    if autoCollectCoins then
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj.Name == "Coin" and obj:IsA("BasePart") then
-                local distance = (rootPart.Position - obj.Position).Magnitude
-                if distance < 50 then
-                    rootPart.CFrame = obj.CFrame
-                    task.wait(0.1)
-                            end
+-- Coin Farm Functions
+local function flyTo(pos, speed)
+    if not rootPart then return end
+    local distance = (pos - rootPart.Position).Magnitude
+    local duration = distance / speed
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local goal = {CFrame = CFrame.new(pos)}
+    local tween = TweenService:Create(rootPart, tweenInfo, goal)
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- AutoFarm Loop (runs when either coin or candy farming is enabled)
+task.spawn(function()
+    while true do
+        if autoFarmCoins or autoFarmCandy then
+            character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            rootPart = character:FindFirstChild("HumanoidRootPart")
+            
+            if rootPart then
+                local closest, shortest = nil, math.huge
+                local targetType = autoFarmCoins and "Coin_Server" or "Candy"
+                
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") and obj.Name == targetType then
+                        local dist = (obj.Position - rootPart.Position).Magnitude
+                        if dist < shortest and dist < 250 and not visitedPositions[obj] then
+                            closest = obj
+                            shortest = dist
                         end
                     end
                 end
-    
-    -- Auto collect guns
-    if autoCollectGuns then
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                local distance = (rootPart.Position - obj.Position).Magnitude
-                if distance < 50 then
-                    rootPart.CFrame = obj.CFrame
-                    task.wait(0.1)
-                        end
+                
+                if closest and closest.Parent and closest:IsDescendantOf(workspace) then
+                    flyTo(closest.Position, flySpeed)
+                    if closest and closest.Parent and closest:IsDescendantOf(workspace) then
+                        visitedPositions[closest] = true
+                        collected += 1
+                        print("Collected:", collected)
                     end
-        end
-    end
-    
-    -- Auto collect candy (Halloween special)
-    if autoCollectCandy then
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj.Name == "Candy" and obj:IsA("BasePart") then
-                local distance = (rootPart.Position - obj.Position).Magnitude
-                if distance < 50 then
-                    rootPart.CFrame = obj.CFrame
-                    task.wait(0.1)
                 end
             end
         end
+        
+        task.wait(0.1)
     end
-end
+end)
+
+-- Disable collisions while flying
+RunService.Stepped:Connect(function()
+    for _, v in ipairs(character:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+        end
+    end
+end)
+
+-- Character respawn handling
+LocalPlayer.CharacterAdded:Connect(function(char)
+    character = char
+    rootPart = char:WaitForChild("HumanoidRootPart")
+    visitedPositions = {}
+end)
 
 -- Weapon Dupe Functions
 local function VisualDupe()
@@ -526,89 +544,54 @@ do
     })
     
     AutoFarmTab:Toggle({
-        Flag = "AutoFarm",
-        Title = "🤖 Auto Farm",
-        Desc = "Enable auto farming system",
-    Default = false,
-        Callback = function(state)
-            autoFarmEnabled = state
-            WindUI:Notify({
-                Title = "🤖 Auto Farm",
-                Content = state and "Auto farming started! 🚀" or "Auto farming stopped. ⏹️"
-            })
-    end
-})
-
-    AutoFarmTab:Toggle({
-        Flag = "AutoCollectCoins",
-        Title = "💰 Auto Collect Coins",
-        Desc = "Automatically collect nearby coins",
+        Flag = "StartCoinAutofarm",
+        Title = "💰 Start Coin Autofarm",
+        Desc = "Automatically collect Coins!",
         Default = false,
         Callback = function(state)
-            autoCollectCoins = state
+            autoFarmCoins = state
+            if state then
+                visitedPositions = {} -- Reset visited positions
+                collected = 0 -- Reset counter
+            end
             WindUI:Notify({
-                Title = "💰 Auto Collect",
-                Content = state and "Auto collecting coins! 💰" or "Stopped collecting coins. ⏹️"
+                Title = "💰 Coin Autofarm",
+                Content = state and "Coin farming started! 💰" or "Coin farming stopped. ⏹️"
             })
-    end
-})
+        end
+    })
 
     AutoFarmTab:Toggle({
-        Flag = "AutoCollectGuns",
-        Title = "🔫 Auto Collect Guns",
-        Desc = "Automatically collect dropped guns",
+        Flag = "StartCandyAutofarm",
+        Title = "🍭 Start Candy Autofarm",
+        Desc = "Automatically collect Candy from the floor!",
         Default = false,
         Callback = function(state)
-            autoCollectGuns = state
+            autoFarmCandy = state
+            if state then
+                visitedPositions = {} -- Reset visited positions
+                collected = 0 -- Reset counter
+            end
             WindUI:Notify({
-                Title = "🔫 Auto Collect",
-                Content = state and "Auto collecting guns! 🔫" or "Stopped collecting guns. ⏹️"
-        })
-    end
-})
+                Title = "🍭 Candy Autofarm",
+                Content = state and "Candy farming started! 🍭" or "Candy farming stopped. ⏹️"
+            })
+        end
+    })
 
     AutoFarmTab:Toggle({
-        Flag = "AutoCollectCandy",
-        Title = "🍭 Auto Collect Candy",
-        Desc = "Automatically collect Halloween candy",
-    Default = false,
+        Flag = "AutoEndRound",
+        Title = "🏁 Auto End Round",
+        Desc = "You will fling murderer once bag is full",
+        Default = false,
         Callback = function(state)
-            autoCollectCandy = state
+            autoEndRound = state
             WindUI:Notify({
-                Title = "🍭 Auto Collect",
-                Content = state and "Auto collecting candy! 🍭" or "Stopped collecting candy. ⏹️"
+                Title = "🏁 Auto End Round",
+                Content = state and "Auto end round enabled! You will fling murderer once bag is full! 🏁" or "Auto end round disabled! 🏁"
             })
-    end
-})
-
-    AutoFarmTab:Button({
-        Title = "📦 Collect All Nearby Items",
-        Color = PurpleTheme.Primary,
-        Icon = "package",
-        Callback = function()
-            local character = LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local rootPart = character.HumanoidRootPart
-                local collectedCount = 0
-                
-                for _, obj in pairs(workspace:GetChildren()) do
-                    if (obj.Name == "Coin" or obj.Name == "GunDrop" or obj.Name == "Candy") and obj:IsA("BasePart") then
-                        local distance = (rootPart.Position - obj.Position).Magnitude
-                        if distance < 100 then
-                            rootPart.CFrame = obj.CFrame
-                            collectedCount = collectedCount + 1
-                            task.wait(0.1)
         end
-    end
-                end
-                
-                WindUI:Notify({
-                    Title = "✅ Collection Complete",
-                    Content = "Collected " .. collectedCount .. " nearby items! 📦"
-                })
-        end
-    end
-})
+    })
 end
 
 -- */  Battlepass Tab  /* --
@@ -1798,9 +1781,6 @@ RunService.Heartbeat:Connect(function()
     
     -- Update character settings
     updateCharacter()
-    
-    -- Auto collect
-    autoCollectLoop()
 end)
 
 -- Connect ESP updates
