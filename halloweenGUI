@@ -438,7 +438,7 @@ do
         Color = PurpleTheme.Primary,
         Icon = "users",
         Callback = function()
-            setclipboard("https://discord.gg/lattemm2")
+            setclipboard("https://discord.gg/8EcCWNXSnS")
             WindUI:Notify({
                 Title = "Discord Copied!",
                 Content = "Latte Discord invite copied to clipboard!"
