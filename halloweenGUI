@@ -269,6 +269,16 @@ local function flyTo(pos, speed)
     tween.Completed:Wait()
 end
 
+-- Function to find coin container
+local function findCoinContainer()
+    for _, v in workspace:GetChildren() do
+        if v:FindFirstChild("CoinContainer") and v:IsA("Model") then
+            return v:FindFirstChild("CoinContainer")
+        end
+    end
+    return nil
+end
+
 -- AutoFarm Loop (runs when either coin or candy farming is enabled)
 task.spawn(function()
     while true do
@@ -278,14 +288,45 @@ task.spawn(function()
             
             if rootPart then
                 local closest, shortest = nil, math.huge
-                local targetType = autoFarmCoins and "Coin_Server" or "Candy"
                 
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and obj.Name == targetType then
-                        local dist = (obj.Position - rootPart.Position).Magnitude
-                        if dist < shortest and dist < 250 and not visitedPositions[obj] then
-                            closest = obj
-                            shortest = dist
+                if autoFarmCandy then
+                    -- Advanced candy farming with coin container detection
+                    local coinContainer = findCoinContainer()
+                    
+                    if coinContainer then
+                        -- Look for coins in the container with CoinID attribute
+                        for _, coin in pairs(coinContainer:GetChildren()) do
+                            if coin:GetAttribute("CoinID") == "Candy" and coin:FindFirstChild("TouchInterest") then
+                                local dist = (coin.Position - rootPart.Position).Magnitude
+                                
+                                if dist < shortest and dist < 250 and not visitedPositions[coin] then
+                                    closest = coin
+                                    shortest = dist
+                                end
+                            end
+                        end
+                    else
+                        -- Fallback to old method if no coin container found
+                        for _, obj in ipairs(workspace:GetDescendants()) do
+                            if obj:IsA("BasePart") and obj.Name == "candy" then
+                                local dist = (obj.Position - rootPart.Position).Magnitude
+                                
+                                if dist < shortest and dist < 250 and not visitedPositions[obj] then
+                                    closest = obj
+                                    shortest = dist
+                                end
+                            end
+                        end
+                    end
+                elseif autoFarmCoins then
+                    -- Regular coin farming
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if obj:IsA("BasePart") and obj.Name == "Coin_Server" then
+                            local dist = (obj.Position - rootPart.Position).Magnitude
+                            if dist < shortest and dist < 250 and not visitedPositions[obj] then
+                                closest = obj
+                                shortest = dist
+                            end
                         end
                     end
                 end
