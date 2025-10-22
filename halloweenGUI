@@ -1,5 +1,5 @@
 --[[
-    Latte MM2 Hub - Halloween Spooky Edition
+    Zovlane Hub - Halloween Spooky Edition
     Enhanced MM2 Script with Spooky Features!
 ]]
 
@@ -47,9 +47,9 @@ end
 -- Welcome Popup
 local Confirmed = false
 WindUI:Popup({
-    Title = spookyGradient("Latte MM2 Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
+    Title = spookyGradient("Zovlane Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
     Icon = "skull",
-    Content = (spookyGradient("Enhanced MM2 Script - Halloween Edition!", HalloweenColors.Orange, HalloweenColors.DarkPurple) .. "<br/>" .. spookyGradient("https://discord.gg/pU8r42d6hd", HalloweenColors.Toxic, HalloweenColors.Purple)),
+    Content = (spookyGradient("Enhanced MM2 Script - Halloween Edition!", HalloweenColors.Orange, HalloweenColors.DarkPurple) .. "<br/>" .. spookyGradient("https://discord.gg/8EcCWNXSnS", HalloweenColors.Toxic, HalloweenColors.Purple)),
     Buttons = {
         {
             Title = "Exit",
@@ -59,7 +59,7 @@ WindUI:Popup({
         {
             Title = "Copy Discord",
             Callback = function()
-                setclipboard("https://discord.gg/pU8r42d6hd")
+                setclipboard("https://discord.gg/8EcCWNXSnS")
                 WindUI:Notify({ 
                     Title = "Discord Copied!", 
                     Content = "Discord invite copied to clipboard!", 
@@ -84,9 +84,9 @@ repeat task.wait() until Confirmed
 
 -- */  Window  /* --
 local Window = WindUI:CreateWindow({
-    Title = spookyGradient("Latte MM2 Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
-    Author = "by Latte Scripts • Halloween Edition",
-    Folder = "lattemm2hub",
+    Title = spookyGradient("Zovlane Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
+    Author = "by Zovlane Scripts • Halloween Edition",
+    Folder = "zovlanehub",
     Icon = "skull",
     NewElements = true,
     
@@ -102,7 +102,7 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = true,
     
     OpenButton = {
-        Title = "Open Latte Hub",
+        Title = "Open Zovlane Hub",
         CornerRadius = UDim.new(0.5, 0),
         StrokeThickness = 2,
         Enabled = true,
@@ -1944,7 +1944,7 @@ do
     })
     
     InfoTab:Section({
-        Title = "Latte MM2 Hub",
+        Title = "Zovlane Hub",
         TextSize = 20,
         FontWeight = Enum.FontWeight.Bold,
     })
@@ -1989,7 +1989,7 @@ do
         Color = HalloweenColors.DarkPurple,
         Justify = "Center",
     Callback = function()
-        setclipboard("https://discord.gg/pU8r42d6hd")
+        setclipboard("https://discord.gg/8EcCWNXSnS")
         WindUI:Notify({ 
                 Title = "Discord", 
                 Content = "Invite copied to clipboard!", 
@@ -2007,7 +2007,7 @@ do
         Color = HalloweenColors.Blood,
         Justify = "Center",
             Callback = function()
-            setclipboard("https://www.youtube.com/@LatteHub")
+            setclipboard("https://www.youtube.com/@zovlanexd")
                     WindUI:Notify({
                 Title = "YouTube",
                 Content = "Channel link copied!",
@@ -2025,7 +2025,7 @@ do
         Color = HalloweenColors.Pumpkin,
         Justify = "Center",
             Callback = function()
-            setclipboard("http://tiktok.com/@scriptsbylatte/")
+            setclipboard("http://tiktok.com/@zovlanexd")
                     WindUI:Notify({
                 Title = "TikTok",
                 Content = "Profile link copied!",
@@ -2115,7 +2115,7 @@ Window.CurrentConfig:Save()
 
 -- Welcome notification
 WindUI:Notify({
-    Title = spookyGradient("Latte MM2 Hub Loaded!", HalloweenColors.Pumpkin, HalloweenColors.Purple),
+    Title = spookyGradient("Zovlane Hub Loaded!", HalloweenColors.Pumpkin, HalloweenColors.Purple),
     Content = "Welcome to the Halloween Edition! Press G to toggle GUI.",
     Icon = "skull",
     Duration = 5
