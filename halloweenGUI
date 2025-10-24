@@ -134,14 +134,22 @@ local autoFarmCoins = false
 local autoFarmCandy = false
 local autoEndRound = false
 local flingMurdererOnFull = false
-local autoKillMurderer = false
+local autoFlingMurderer = false
 local visitedPositions = {}
-local flySpeed = 19
+local flySpeed = 25
 local collected = 0
 local currentBagAmount = 0
 local maxBagCapacity = 40
 local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Improved Auto Farm System Variables
+local farming = false
+local bag_full = false
+local resetting = false
+local start_position = nil
+local farmingCoins = false
+local farmingCandy = false
 
 -- Check for premium gamepass
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -321,143 +329,412 @@ local function updateCharacter()
     end
 end
 
--- Auto Farm Functions
-local function flyTo(pos, speed)
-    if not rootPart then return end
-    local distance = (pos - rootPart.Position).Magnitude
-    local duration = distance / speed
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local goal = {CFrame = CFrame.new(pos)}
-    local tween = TweenService:Create(rootPart, tweenInfo, goal)
-    tween:Play()
-    tween.Completed:Wait()
-end
+-- MiniFling function (must be defined before flingMurdererFunction)
+local function miniFling(Targets)
+    local Players = game:GetService("Players")
+    local AllBool = false
 
-local function findCoinContainer()
-    for _, v in workspace:GetChildren() do
-        if v:FindFirstChild("CoinContainer") and v:IsA("Model") then
-            return v:FindFirstChild("CoinContainer")
+    local GetPlayer = function(Name)
+        Name = Name:lower()
+        if Name == "all" or Name == "others" then
+            AllBool = true
+            return
+        elseif Name == "random" then
+            local GetPlayers = Players:GetPlayers()
+            if table.find(GetPlayers,Players.LocalPlayer) then table.remove(GetPlayers,table.find(GetPlayers,Players.LocalPlayer)) end
+            return GetPlayers[math.random(#GetPlayers)]
+        elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
+            for _,x in next, Players:GetPlayers() do
+                if x ~= Players.LocalPlayer then
+                    if x.Name:lower():match("^"..Name) then
+                        return x;
+                    elseif x.DisplayName:lower():match("^"..Name) then
+                        return x;
+                    end
+                end
+            end
+        else
+            return
         end
     end
-    return nil
+
+    local SkidFling = function(TargetPlayer)
+        local Character = Players.LocalPlayer.Character
+        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+        local RootPart = Humanoid and Humanoid.RootPart
+
+        local TCharacter = TargetPlayer.Character
+        local THumanoid
+        local TRootPart
+        local THead
+        local Accessory
+        local Handle
+
+        if TCharacter:FindFirstChildOfClass("Humanoid") then
+            THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
+        end
+        if THumanoid and THumanoid.RootPart then
+            TRootPart = THumanoid.RootPart
+        end
+        if TCharacter:FindFirstChild("Head") then
+            THead = TCharacter.Head
+        end
+        if TCharacter:FindFirstChildOfClass("Accessory") then
+            Accessory = TCharacter:FindFirstChildOfClass("Accessory")
+        end
+        if Accessory and Accessory:FindFirstChild("Handle") then
+            Handle = Accessory.Handle
+        end
+
+        if Character and Humanoid and RootPart then
+            if RootPart.Velocity.Magnitude < 50 then
+                getgenv().OldPos = RootPart.CFrame
+            end
+            if THumanoid and THumanoid.Sit and not AllBool then
+                return 
+            end
+            if THead then
+                game.Workspace.CurrentCamera.CameraSubject = THead
+            elseif not THead and Handle then
+                game.Workspace.CurrentCamera.CameraSubject = Handle
+            elseif THumanoid and TRootPart then
+                game.Workspace.CurrentCamera.CameraSubject = THumanoid
+            end
+            if not TCharacter:FindFirstChildWhichIsA("BasePart") then
+                return
+            end
+
+            local FPos = function(BasePart, Pos, Ang)
+                RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
+                Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+                RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            end
+
+            local SFBasePart = function(BasePart)
+                local TimeToWait = 2
+                local Time = tick()
+                local Angle = 0
+
+                repeat
+                    if RootPart and THumanoid then
+                        if BasePart.Velocity.Magnitude < 50 then
+                            Angle = Angle + 100
+
+                            FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle),0 ,0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
+                            task.wait()
+                        else
+                            FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5 ,0), CFrame.Angles(math.rad(-90), 0, 0))
+                            task.wait()
+
+                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                            task.wait()
+                        end
+                    else
+                        break
+                    end
+                until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
+            end
+
+            game.Workspace.FallenPartsDestroyHeight = 0/0
+
+            local BV = Instance.new("BodyVelocity")
+            BV.Name = "EpixVel"
+            BV.Parent = RootPart
+            BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+            BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+            if TRootPart and THead then
+                if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+                    SFBasePart(THead)
+                else
+                    SFBasePart(TRootPart)
+                end
+            elseif TRootPart and not THead then
+                SFBasePart(TRootPart)
+            elseif not TRootPart and THead then
+                SFBasePart(THead)
+            elseif not TRootPart and not THead and Accessory and Handle then
+                SFBasePart(Handle)
+            else
+                return 
+            end
+
+            BV:Destroy()
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+            game.Workspace.CurrentCamera.CameraSubject = Humanoid
+
+            repeat
+                RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
+                Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
+                Humanoid:ChangeState("GettingUp")
+                table.foreach(Character:GetChildren(), function(_, x)
+                    if x:IsA("BasePart") then
+                        x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+                    end
+                end)
+                task.wait()
+            until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+            game.Workspace.FallenPartsDestroyHeight = -500
+        else
+            return 
+        end
+        game.Workspace.FallenPartsDestroyHeight = -500
+    end
+
+    if Targets[1] then for _,x in next, Targets do GetPlayer(x) end else return end
+
+    if AllBool then
+        for _,x in next, Players:GetPlayers() do
+            SkidFling(x)
+        end
+    end
+
+    for _,x in next, Targets do
+        if GetPlayer(x) and GetPlayer(x) ~= Players.LocalPlayer then
+            local TPlayer = GetPlayer(x)
+            if TPlayer then
+                SkidFling(TPlayer)
+            end
+        elseif not GetPlayer(x) and not AllBool then
+            
+        end
+    end
 end
 
--- Function to check if we're in a game round (not lobby)
-local function isInGame()
-    -- Check if we're in lobby by looking for lobby-specific UI elements
-    local lobbyScreen = LocalPlayer.PlayerGui:FindFirstChild("MainGUI") and 
-                       LocalPlayer.PlayerGui.MainGUI:FindFirstChild("Lobby")
-    if lobbyScreen and lobbyScreen.Visible then
-        return false
-    end
-    
-    -- Check if we're in game by looking for game-specific UI elements
-    local gameScreen = LocalPlayer.PlayerGui:FindFirstChild("MainGUI") and 
-                      LocalPlayer.PlayerGui.MainGUI:FindFirstChild("Game")
-    if gameScreen and gameScreen.Visible then
-        return true
-    end
-    
-    -- Additional check: look for round-related remotes
-    local roundStart = ReplicatedStorage:FindFirstChild("Remotes") and 
-                      ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
-                      ReplicatedStorage.Remotes.Gameplay:FindFirstChild("RoundStart")
-    
-    -- If we can't find clear indicators, assume we're in game if character exists and has proper structure
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        -- Check if we're in a proper map (not lobby spawn)
-        local workspaceChildren = workspace:GetChildren()
-        local mapIndicators = {"ResearchFacility", "Hospital3", "MilBase", "House2", "Workplace", 
-                              "Mansion2", "BioLab", "Hotel", "Factory", "Bank2", "PoliceStation"}
-        
-        for _, mapName in ipairs(mapIndicators) do
-            if workspace:FindFirstChild(mapName) then
-                return true
+-- Function to fling murderer (called by both button and auto fling)
+local function flingMurdererFunction()
+    local murderer = nil
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            -- Check character for knife
+            if player.Character:FindFirstChild("Knife") then
+                murderer = player
+                break
+            end
+            -- Check backpack for knife
+            local backpack = player:FindFirstChild("Backpack")
+            if backpack and backpack:FindFirstChild("Knife") then
+                murderer = player
+                break
             end
         end
     end
     
+    if murderer and murderer.Character then
+        WindUI:Notify({
+            Title = "Flinging Murderer",
+            Content = "Flinging " .. murderer.Name .. "!",
+            Icon = "zap",
+            Duration = 3
+        })
+        
+        -- Use miniFling with murderer's name
+        miniFling({murderer.Name})
+        
+        WindUI:Notify({
+            Title = "Fling Complete",
+            Content = "Murderer has been flung!",
+            Icon = "check-circle",
+            Duration = 2
+        })
+        return true
+    else
+        WindUI:Notify({
+            Title = "Fling Error",
+            Content = "No murderer found!",
+            Icon = "x-circle",
+            Duration = 3
+        })
     return false
+    end
 end
 
--- AutoFarm Loop
+-- Auto Farm Functions
+
+
+
+-- Improved Auto Farm System
+local function getCharacter() 
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() 
+end
+
+local function getHRP() 
+    return getCharacter():WaitForChild("HumanoidRootPart") 
+end
+
+-- Round event handlers
+local CoinCollected = ReplicatedStorage:FindFirstChild("Remotes") and 
+                      ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
+                      ReplicatedStorage.Remotes.Gameplay:FindFirstChild("CoinCollected")
+
+local RoundStart = ReplicatedStorage:FindFirstChild("Remotes") and 
+                   ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
+                   ReplicatedStorage.Remotes.Gameplay:FindFirstChild("RoundStart")
+
+local RoundEnd = ReplicatedStorage:FindFirstChild("Remotes") and 
+                 ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
+                 ReplicatedStorage.Remotes.Gameplay:FindFirstChild("RoundEndFade")
+
+if RoundStart then
+    RoundStart.OnClientEvent:Connect(function()
+        farming = true
+        start_position = getHRP().CFrame
+        print("[DEBUG] Round started, farming enabled")
+    end)
+end
+
+if RoundEnd then
+    RoundEnd.OnClientEvent:Connect(function()
+        farming = false
+        print("[DEBUG] Round ended, farming disabled")
+    end)
+end
+
+-- Improved coin detection function
+local function get_nearest_coin()
+    local hrp = getHRP()
+    local closest, dist = nil, math.huge
+    
+    -- Search through workspace children for CoinContainer
+    for _, m in pairs(workspace:GetChildren()) do
+        if m:FindFirstChild("CoinContainer") then
+            for _, coin in pairs(m.CoinContainer:GetChildren()) do
+                if coin:IsA("BasePart") and coin:FindFirstChild("TouchInterest") then
+                    local d = (hrp.Position - coin.Position).Magnitude
+                    if d < dist then 
+                        closest, dist = coin, d 
+                    end
+                end
+            end
+        end
+    end
+    
+    return closest, dist
+end
+
+-- Improved candy detection function
+local function get_nearest_candy()
+    local hrp = getHRP()
+    local closest, dist = nil, math.huge
+    
+    -- First try CoinContainer method
+    for _, m in pairs(workspace:GetChildren()) do
+        if m:FindFirstChild("CoinContainer") then
+            for _, coin in pairs(m.CoinContainer:GetChildren()) do
+                if coin:IsA("BasePart") and coin:GetAttribute("CoinID") == "Candy" and coin:FindFirstChild("TouchInterest") then
+                    local d = (hrp.Position - coin.Position).Magnitude
+                    if d < dist then 
+                        closest, dist = coin, d 
+                        end
+                    end
+                end
+        end
+    end
+    
+    -- Fallback to workspace search
+    if not closest then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "candy" then
+                local d = (hrp.Position - obj.Position).Magnitude
+                if d < dist then 
+                    closest, dist = obj, d 
+                        end
+                    end
+                end
+            end
+            
+    return closest, dist
+end
+
+-- Improved Auto Farm Loop
 task.spawn(function()
     while true do
-        if autoFarmCoins or autoFarmCandy then
-            -- More reliable character and rootpart checking
-            character = LocalPlayer.Character
-            if not character then
-                task.wait(0.5)
-                continue
-            end
-            
-            rootPart = character:FindFirstChild("HumanoidRootPart")
-            if not rootPart then
-                task.wait(0.5)
-                continue
-            end
-            
-            -- Remove isInGame() check to make it work more consistently
-            local closest, shortest = nil, math.huge
+        if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
+            local hrp = getHRP()
+            local coin, dist = nil, math.huge
             
             if autoFarmCandy then
-                local coinContainer = findCoinContainer()
-                
-                if coinContainer then
-                    for _, coin in pairs(coinContainer:GetChildren()) do
-                        if coin:GetAttribute("CoinID") == "Candy" and coin:FindFirstChild("TouchInterest") then
-                            local dist = (coin.Position - rootPart.Position).Magnitude
-                            
-                            if dist < shortest and dist < 250 and not visitedPositions[coin] then
-                                closest = coin
-                                shortest = dist
-                            end
-                        end
-                    end
-                else
-                    for _, obj in ipairs(workspace:GetDescendants()) do
-                        if obj:IsA("BasePart") and obj.Name == "candy" then
-                            local dist = (obj.Position - rootPart.Position).Magnitude
-                            
-                            if dist < shortest and dist < 250 and not visitedPositions[obj] then
-                                closest = obj
-                                shortest = dist
-                            end
-                        end
-                    end
-                end
+                coin, dist = get_nearest_candy()
             elseif autoFarmCoins then
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and obj.Name == "Coin_Server" then
-                        local dist = (obj.Position - rootPart.Position).Magnitude
-                        if dist < shortest and dist < 250 and not visitedPositions[obj] then
-                            closest = obj
-                            shortest = dist
-                        end
-                    end
-                end
+                coin, dist = get_nearest_coin()
             end
             
-            if closest and closest.Parent and closest:IsDescendantOf(workspace) then
-                print("[DEBUG] Flying to closest item at distance:", shortest)
-                flyTo(closest.Position, flySpeed)
-                if closest and closest.Parent and closest:IsDescendantOf(workspace) then
-                    visitedPositions[closest] = true
+            if coin then
+                if dist > 150 then
+                    -- Teleport for distant coins
+                    hrp.CFrame = coin.CFrame
+                    print("[DEBUG] Teleported to distant coin at distance:", dist)
+                else
+                    -- Use tweening for nearby coins
+                    local tween = TweenService:Create(hrp, TweenInfo.new(dist / flySpeed, Enum.EasingStyle.Linear), {CFrame = coin.CFrame})
+                    tween:Play()
+                    print("[DEBUG] Tweening to nearby coin at distance:", dist)
+                    
+                    -- Wait until coin is collected or farming stops
+                    repeat 
+                        task.wait() 
+                    until not coin:FindFirstChild("TouchInterest") or not farming or not (autoFarmCoins or autoFarmCandy)
+                    
+                    tween:Cancel()
+                end
+                
                     collected += 1
                     print("[DEBUG] Collected item, total collected:", collected)
-                end
             else
                 print("[DEBUG] No valid items found to collect")
             end
         end
         
-        task.wait(0.1)
+        task.wait(0.2)
     end
 end)
 
--- Disable collisions while flying
+-- Disable collisions while farming
 RunService.Stepped:Connect(function()
-    if autoFarmCoins or autoFarmCandy then
+    if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
+        local character = LocalPlayer.Character
         if character and character:IsDescendantOf(workspace) then
             for _, v in ipairs(character:GetDescendants()) do
                 if v:IsA("BasePart") then
@@ -468,20 +745,19 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Character respawn handling
+-- Improved Character respawn handling
 LocalPlayer.CharacterAdded:Connect(function(char)
     character = char
     rootPart = char:WaitForChild("HumanoidRootPart")
     visitedPositions = {}
     currentBagAmount = 0
+    bag_full = false
+    resetting = false
     checkPremiumStatus()
+    print("[DEBUG] Character respawned, farming state reset")
 end)
 
--- Monitor candy collection
-local CoinCollected = ReplicatedStorage:FindFirstChild("Remotes") and 
-                      ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
-                      ReplicatedStorage.Remotes.Gameplay:FindFirstChild("CoinCollected")
-
+-- Improved Auto Reset System
 if CoinCollected then
     CoinCollected.OnClientEvent:Connect(function(coinType, newAmount, oldAmount, additionalData)
         if coinType == "Candy" then
@@ -492,7 +768,8 @@ if CoinCollected then
             if currentBagAmount >= maxBagCapacity then
                 print("[DEBUG] Bag is full! (" .. maxBagCapacity .. " candies reached)")
                 print("[DEBUG] autoEndRound is:", autoEndRound)
-                print("[DEBUG] flingMurdererOnFull is:", flingMurdererOnFull)
+                print("[DEBUG] autoFlingMurderer is:", autoFlingMurderer)
+                print("[DEBUG] autoKillMurderer is:", autoKillMurderer)
                 
                 WindUI:Notify({
                     Title = "Bag Full!",
@@ -502,39 +779,13 @@ if CoinCollected then
                 })
                 
                 -- Stop autofarm when bag is full
-                local candyWasEnabled = autoFarmCandy
                 autoFarmCandy = false
+                autoFarmCoins = false
                 print("[DEBUG] Stopped autofarm")
                 
-                -- Auto reset character if enabled
-                if autoEndRound then
-                    print("[DEBUG] Auto reset character enabled...")
-                    WindUI:Notify({
-                        Title = "Auto Reset",
-                        Content = "Resetting character instantly!",
-                        Icon = "refresh-cw",
-                        Duration = 2
-                    })
-                    
-                    -- Instant reset using BreakJoints
-                    if LocalPlayer.Character then
-                        print("[DEBUG] Resetting character with BreakJoints...")
-                        LocalPlayer.Character:BreakJoints()
-                        print("[DEBUG] Character reset completed")
-                    else
-                        print("[DEBUG] No character found to reset")
-                    end
-                else
-                    print("[DEBUG] autoEndRound is disabled, skipping")
-                end
-                
-                -- Auto kill murderer if enabled
-                if autoKillMurderer then
-                    print("[DEBUG] Auto kill murderer enabled...")
-                    
-                    -- Immediately disable autofarm
-                    autoFarmCandy = false
-                    autoFarmCoins = false
+                -- Auto fling murderer if enabled (works independently)
+                if autoFlingMurderer then
+                    print("[DEBUG] Auto fling murderer enabled...")
                     
                     WindUI:Notify({
                         Title = "Auto Fling Murderer",
@@ -567,24 +818,66 @@ if CoinCollected then
                     else
                         print("[DEBUG] No murderer found")
                     end
-                else
-                    print("[DEBUG] autoKillMurderer is disabled, skipping")
+                end
+                
+                
+                -- Auto reset character if enabled
+                if autoEndRound and not resetting then
+                    resetting = true
+                    bag_full = true
+                    
+                    -- Return to start position before resetting
+                    local hrp = getHRP()
+                    if start_position then
+                        print("[DEBUG] Returning to start position...")
+                        local tween = TweenService:Create(hrp, TweenInfo.new(2, Enum.EasingStyle.Linear), {CFrame = start_position})
+                        tween:Play()
+                        tween.Completed:Wait()
+                    end
+                    
+                    -- Wait a bit before resetting
+                    task.wait(0.5)
+                    
+                    -- Reset character
+                    print("[DEBUG] Resetting character...")
+                    WindUI:Notify({
+                        Title = "Auto Reset",
+                        Content = "Resetting character instantly!",
+                        Icon = "refresh-cw",
+                        Duration = 2
+                    })
+                    
+                    if LocalPlayer.Character then
+                        LocalPlayer.Character:BreakJoints()
+                        LocalPlayer.CharacterAdded:Wait()
+                        task.wait(1.5)
+                        print("[DEBUG] Character reset completed")
+                    end
+                    
+                    -- Reset farming state
+                    resetting = false
+                    bag_full = false
+                    print("[DEBUG] Farming state reset")
                 end
             end
         end
     end)
 end
 
--- Monitor round start to resume autofarm
-local RoundStart = ReplicatedStorage:FindFirstChild("Remotes") and 
-                   ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
-                   ReplicatedStorage.Remotes.Gameplay:FindFirstChild("RoundStart")
-
+-- Improved Round Start Handler
 if RoundStart then
     RoundStart.OnClientEvent:Connect(function(roundTime, playerData)
-        -- Reset bag amount
+        -- Reset farming state
         currentBagAmount = 0
         visitedPositions = {}
+        bag_full = false
+        resetting = false
+        
+        -- Set farming to true for the improved system
+        farming = true
+        start_position = getHRP().CFrame
+        
+        print("[DEBUG] Round started, farming enabled")
         
         -- Always resume autofarm if it was enabled before (regardless of autoEndRound setting)
         local wasCandyFarming = autoFarmCandy
@@ -1101,219 +1394,6 @@ local function ShootMurderer()
     end
 end
 
--- MiniFling function
-local function miniFling(Targets)
-    local Players = game:GetService("Players")
-    local AllBool = false
-
-    local GetPlayer = function(Name)
-        Name = Name:lower()
-        if Name == "all" or Name == "others" then
-            AllBool = true
-            return
-        elseif Name == "random" then
-            local GetPlayers = Players:GetPlayers()
-            if table.find(GetPlayers,Players.LocalPlayer) then table.remove(GetPlayers,table.find(GetPlayers,Players.LocalPlayer)) end
-            return GetPlayers[math.random(#GetPlayers)]
-        elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
-            for _,x in next, Players:GetPlayers() do
-                if x ~= Players.LocalPlayer then
-                    if x.Name:lower():match("^"..Name) then
-                        return x;
-                    elseif x.DisplayName:lower():match("^"..Name) then
-                        return x;
-                    end
-                end
-            end
-        else
-            return
-        end
-    end
-
-    local SkidFling = function(TargetPlayer)
-        local Character = Players.LocalPlayer.Character
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        local RootPart = Humanoid and Humanoid.RootPart
-
-        local TCharacter = TargetPlayer.Character
-        local THumanoid
-        local TRootPart
-        local THead
-        local Accessory
-        local Handle
-
-        if TCharacter:FindFirstChildOfClass("Humanoid") then
-            THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
-        end
-        if THumanoid and THumanoid.RootPart then
-            TRootPart = THumanoid.RootPart
-        end
-        if TCharacter:FindFirstChild("Head") then
-            THead = TCharacter.Head
-        end
-        if TCharacter:FindFirstChildOfClass("Accessory") then
-            Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-        end
-        if Accessory and Accessory:FindFirstChild("Handle") then
-            Handle = Accessory.Handle
-        end
-
-        if Character and Humanoid and RootPart then
-            if RootPart.Velocity.Magnitude < 50 then
-                getgenv().OldPos = RootPart.CFrame
-            end
-            if THumanoid and THumanoid.Sit and not AllBool then
-                return 
-            end
-            if THead then
-                game.Workspace.CurrentCamera.CameraSubject = THead
-            elseif not THead and Handle then
-                game.Workspace.CurrentCamera.CameraSubject = Handle
-            elseif THumanoid and TRootPart then
-                game.Workspace.CurrentCamera.CameraSubject = THumanoid
-            end
-            if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-                return
-            end
-
-            local FPos = function(BasePart, Pos, Ang)
-                RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-                Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-                RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-                RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            end
-
-            local SFBasePart = function(BasePart)
-                local TimeToWait = 2
-                local Time = tick()
-                local Angle = 0
-
-                repeat
-                    if RootPart and THumanoid then
-                        if BasePart.Velocity.Magnitude < 50 then
-                            Angle = Angle + 100
-
-                            FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle),0 ,0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle), 0, 0))
-                            task.wait()
-                        else
-                            FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5 ,0), CFrame.Angles(math.rad(-90), 0, 0))
-                            task.wait()
-
-                            FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                            task.wait()
-                        end
-                    else
-                        break
-                    end
-                until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
-            end
-
-            game.Workspace.FallenPartsDestroyHeight = 0/0
-
-            local BV = Instance.new("BodyVelocity")
-            BV.Name = "EpixVel"
-            BV.Parent = RootPart
-            BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
-            BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-
-            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-
-            if TRootPart and THead then
-                if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
-                    SFBasePart(THead)
-                else
-                    SFBasePart(TRootPart)
-                end
-            elseif TRootPart and not THead then
-                SFBasePart(TRootPart)
-            elseif not TRootPart and THead then
-                SFBasePart(THead)
-            elseif not TRootPart and not THead and Accessory and Handle then
-                SFBasePart(Handle)
-            else
-                return 
-            end
-
-            BV:Destroy()
-            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-            game.Workspace.CurrentCamera.CameraSubject = Humanoid
-
-            repeat
-                RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
-                Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
-                Humanoid:ChangeState("GettingUp")
-                table.foreach(Character:GetChildren(), function(_, x)
-                    if x:IsA("BasePart") then
-                        x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
-                    end
-                end)
-                task.wait()
-            until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
-            game.Workspace.FallenPartsDestroyHeight = -500
-        else
-            return 
-        end
-        game.Workspace.FallenPartsDestroyHeight = -500
-    end
-
-    if Targets[1] then for _,x in next, Targets do GetPlayer(x) end else return end
-
-    if AllBool then
-        for _,x in next, Players:GetPlayers() do
-            SkidFling(x)
-        end
-    end
-
-    for _,x in next, Targets do
-        if GetPlayer(x) and GetPlayer(x) ~= Players.LocalPlayer then
-            local TPlayer = GetPlayer(x)
-            if TPlayer then
-                SkidFling(TPlayer)
-            end
-        elseif not GetPlayer(x) and not AllBool then
-            
-        end
-    end
-end
 
 -- ========================================
 -- TABS CREATION
@@ -1492,30 +1572,31 @@ do
     AutoFarmTab:Space()
     
     AutoFarmTab:Toggle({
-        Flag = "AutoKillMurderer",
-        Title = "Auto Kill Murderer",
-        Desc = "Automatically kill murderer when bag is full",
+        Flag = "AutoFlingMurderer",
+        Title = "Auto Fling Murderer",
+        Desc = "Automatically fling murderer when bag is full",
         Default = false,
         Callback = function(state)
-            autoKillMurderer = state
-            print("[DEBUG] Auto Kill Murderer toggle changed to:", state)
+            autoFlingMurderer = state
+            print("[DEBUG] Auto Fling Murderer toggle changed to:", state)
             if state then
                 WindUI:Notify({ 
-                    Title = "Auto Kill Murderer", 
-                    Content = "Will kill murderer at " .. maxBagCapacity .. " candy", 
-                    Icon = "skull", 
+                    Title = "Auto Fling Murderer", 
+                    Content = "Will fling murderer at " .. maxBagCapacity .. " candy", 
+                    Icon = "zap", 
                     Duration = 3 
                 })
             else
                 WindUI:Notify({ 
-                    Title = "Auto Kill Murderer", 
-                    Content = "Auto kill murderer disabled", 
+                    Title = "Auto Fling Murderer", 
+                    Content = "Auto fling murderer disabled", 
                     Icon = "x-circle", 
                     Duration = 3 
                 })
             end
         end
     })
+    
     
     AutoFarmTab:Space()
     
@@ -1527,7 +1608,7 @@ do
         Value = {
             Min = 5,
             Max = 50,
-            Default = 19
+            Default = 25
         },
         Callback = function(value)
             flySpeed = value
@@ -1537,7 +1618,7 @@ do
     AutoFarmTab:Space()
     
     AutoFarmTab:Section({
-        Title = "⚠️ Recommended: 18, higher will probably get you kicked",
+        Title = "⚠️ Recommended: 25, higher will probably get you kicked",
         TextSize = 14,
         TextTransparency = 0.3,
         FontWeight = Enum.FontWeight.Medium,
@@ -1564,53 +1645,6 @@ do
     
     AutoFarmTab:Space()
     
--- Function to fling murderer (called by both button and auto fling)
-local function flingMurdererFunction()
-    local murderer = nil
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            -- Check character for knife
-            if player.Character:FindFirstChild("Knife") then
-                murderer = player
-                break
-            end
-            -- Check backpack for knife
-            local backpack = player:FindFirstChild("Backpack")
-            if backpack and backpack:FindFirstChild("Knife") then
-                murderer = player
-                break
-            end
-        end
-    end
-    
-    if murderer and murderer.Character then
-        WindUI:Notify({
-            Title = "Flinging Murderer",
-            Content = "Flinging " .. murderer.Name .. "!",
-            Icon = "zap",
-            Duration = 3
-        })
-        
-        -- Use miniFling with murderer's name
-        miniFling({murderer.Name})
-        
-        WindUI:Notify({
-            Title = "Fling Complete",
-            Content = "Murderer has been flung!",
-            Icon = "check-circle",
-            Duration = 2
-        })
-        return true
-    else
-        WindUI:Notify({
-            Title = "Fling Error",
-            Content = "No murderer found!",
-            Icon = "x-circle",
-            Duration = 3
-        })
-        return false
-    end
-end
 
     AutoFarmTab:Button({
         Title = "Fling Murderer",
