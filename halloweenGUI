@@ -34,8 +34,6 @@ local HalloweenColors = {
     Witch = Color3.fromHex("#6B2E8A"),
     Midnight = Color3.fromHex("#0D0221"),
     Toxic = Color3.fromHex("#39FF14"),
-    Discord = Color3.fromHex("#5865F2"),
-    DiscordDark = Color3.fromHex("#404EED"),
 }
 
 -- Spooky Gradient Function
@@ -132,6 +130,7 @@ local Window = WindUI:CreateWindow({
 })
 
 -- Auto Farm Variables
+local autoFarmCoins = false
 local autoFarmCandy = false
 local autoEndRound = false
 local flingMurdererOnFull = false
@@ -149,44 +148,8 @@ local farming = false
 local bag_full = false
 local resetting = false
 local start_position = nil
+local farmingCoins = false
 local farmingCandy = false
-
--- Premium Access System
-local PremiumAccess = {
-    WeaponSpawner = false,
-    WeaponDupe = false,
-    AllFeatures = false
-}
-
--- Daily spawn tracking
-local DailySpawns = {
-    Count = 0,
-    LastReset = os.date("%Y-%m-%d"),
-    MaxSpawns = 3
-}
-
--- Check if daily limit reset
-local function checkDailyReset()
-    local currentDate = os.date("%Y-%m-%d")
-    if DailySpawns.LastReset ~= currentDate then
-        DailySpawns.Count = 0
-        DailySpawns.LastReset = currentDate
-        print("[Daily Reset] Spawn count reset for new day")
-    end
-end
-
--- Check if user can spawn
-local function canSpawn()
-    checkDailyReset()
-    return DailySpawns.Count < DailySpawns.MaxSpawns
-end
-
--- Increment spawn count
-local function incrementSpawnCount()
-    checkDailyReset()
-    DailySpawns.Count = DailySpawns.Count + 1
-    print("[Spawn Count] Daily spawns used: " .. DailySpawns.Count .. "/" .. DailySpawns.MaxSpawns)
-end
 
 -- Check for premium gamepass
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -200,9 +163,6 @@ local function checkPremiumStatus()
     if success then
         if hasGamepass then
             maxBagCapacity = 50
-            PremiumAccess.AllFeatures = true
-            PremiumAccess.WeaponSpawner = true
-            PremiumAccess.WeaponDupe = true
             print("[Gamepass Check] ✅ You own the premium gamepass!")
         else
             maxBagCapacity = 40
@@ -212,31 +172,6 @@ local function checkPremiumStatus()
         maxBagCapacity = 40
         print("[Gamepass Check] ⚠️ Failed to check ownership.")
     end
-end
-
--- Premium Payment System
-local function showDiscordPurchaseInstructions(featureName, robuxPrice, usdPrice)
-    -- Copy Discord link to clipboard
-    setclipboard("https://discord.gg/8EcCWNXSnS")
-    
-    local limitText = ""
-    if featureName == "WeaponSpawner" then
-        limitText = "\n⚠️ Daily Limit: 3 spawns per day"
-    end
-    
-    WindUI:Notify({
-        Title = "💎 Join Discord to Purchase",
-        Content = "Discord invite copied to clipboard!\n\n" ..
-                "📋 Purchase Steps:\n" ..
-                "1. Join our Discord server\n" ..
-                "2. Open a ticket in #support\n" ..
-                "3. Request: " .. featureName .. "\n" ..
-                "4. Pay: " .. robuxPrice .. " or " .. usdPrice .. "\n" ..
-                "5. Get instant access!" .. limitText .. "\n\n" ..
-                "⚡ Fast and secure payment!",
-        Icon = "message-circle",
-        Duration = 12
-    })
 end
 
 -- Initialize premium check
@@ -682,44 +617,42 @@ local RoundEnd = ReplicatedStorage:FindFirstChild("Remotes") and
                  ReplicatedStorage.Remotes:FindFirstChild("Gameplay") and 
                  ReplicatedStorage.Remotes.Gameplay:FindFirstChild("RoundEndFade")
 
--- Single Round Start Handler
 if RoundStart then
-    RoundStart.OnClientEvent:Connect(function(roundTime, playerData)
-        print("[DEBUG] Round started - Resetting all farming states")
-        
-        -- Reset all farming states
+    RoundStart.OnClientEvent:Connect(function()
         farming = true
-        bag_full = false
-        resetting = false
-        currentBagAmount = 0
-        visitedPositions = {}
         start_position = getHRP().CFrame
-        
         print("[DEBUG] Round started, farming enabled")
-        print("[DEBUG] autoFarmCandy state:", autoFarmCandy)
-        
-        -- Resume candy autofarm if it was enabled before
-        if autoFarmCandy then
-            WindUI:Notify({
-                Title = "Round Started!",
-                Content = "🍭 Candy autofarm resumed automatically",
-                Icon = "play-circle",
-                Duration = 2
-            })
-        end
     end)
 end
 
 if RoundEnd then
     RoundEnd.OnClientEvent:Connect(function()
-        print("[DEBUG] Round ended - Disabling farming")
         farming = false
-        bag_full = false
-        resetting = false
         print("[DEBUG] Round ended, farming disabled")
     end)
 end
 
+-- Improved coin detection function
+local function get_nearest_coin()
+    local hrp = getHRP()
+    local closest, dist = nil, math.huge
+    
+    -- Search through workspace children for CoinContainer
+    for _, m in pairs(workspace:GetChildren()) do
+        if m:FindFirstChild("CoinContainer") then
+            for _, coin in pairs(m.CoinContainer:GetChildren()) do
+                if coin:IsA("BasePart") and coin:FindFirstChild("TouchInterest") then
+                    local d = (hrp.Position - coin.Position).Magnitude
+                    if d < dist then 
+                        closest, dist = coin, d 
+                    end
+                end
+            end
+        end
+    end
+    
+    return closest, dist
+end
 
 -- Improved candy detection function
 local function get_nearest_candy()
@@ -755,56 +688,43 @@ local function get_nearest_candy()
     return closest, dist
 end
 
--- Improved Auto Farm Loop with Better Error Handling
+-- Improved Auto Farm Loop
 task.spawn(function()
     while true do
-        local success, error = pcall(function()
-            if autoFarmCandy and farming and not bag_full and not resetting then
-                local hrp = getHRP()
-                if not hrp then 
-                    print("[DEBUG] No HumanoidRootPart found, skipping this cycle")
-                    return 
+        if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
+            local hrp = getHRP()
+            local coin, dist = nil, math.huge
+            
+            if autoFarmCandy then
+                coin, dist = get_nearest_candy()
+            elseif autoFarmCoins then
+                coin, dist = get_nearest_coin()
+            end
+            
+            if coin then
+                if dist > 150 then
+                    -- Teleport for distant coins
+                    hrp.CFrame = coin.CFrame
+                    print("[DEBUG] Teleported to distant coin at distance:", dist)
+                else
+                    -- Use tweening for nearby coins
+                    local tween = TweenService:Create(hrp, TweenInfo.new(dist / flySpeed, Enum.EasingStyle.Linear), {CFrame = coin.CFrame})
+                    tween:Play()
+                    print("[DEBUG] Tweening to nearby coin at distance:", dist)
+                    
+                    -- Wait until coin is collected or farming stops
+                    repeat 
+                        task.wait() 
+                    until not coin:FindFirstChild("TouchInterest") or not farming or not (autoFarmCoins or autoFarmCandy)
+                    
+                    tween:Cancel()
                 end
                 
-                local candy, dist = get_nearest_candy()
-                
-                if candy and candy.Parent then
-                    if dist > 150 then
-                        -- Teleport for distant candy
-                        hrp.CFrame = candy.CFrame
-                        print("[DEBUG] Teleported to distant candy at distance:", dist)
-                    else
-                        -- Use tweening for nearby candy
-                        local tween = TweenService:Create(hrp, TweenInfo.new(dist / flySpeed, Enum.EasingStyle.Linear), {CFrame = candy.CFrame})
-                        tween:Play()
-                        print("[DEBUG] Tweening to nearby candy at distance:", dist)
-                        
-                        -- Wait until candy is collected or farming stops
-                        local waitTime = 0
-                        repeat 
-                            task.wait(0.1)
-                            waitTime = waitTime + 0.1
-                        until not candy:FindFirstChild("TouchInterest") or not farming or not autoFarmCandy or waitTime > 5
-                        
-                        tween:Cancel()
-                    end
-                    
                     collected += 1
                     print("[DEBUG] Collected item, total collected:", collected)
-                else
-                    if not candy then
-                        print("[DEBUG] No valid candy found to collect")
-                    end
-                end
+            else
+                print("[DEBUG] No valid items found to collect")
             end
-        end)
-        
-        if not success then
-            print("[ERROR] Autofarm loop error:", error)
-            -- Reset states on error
-            farming = false
-            bag_full = false
-            resetting = false
         end
         
         task.wait(0.2)
@@ -813,7 +733,7 @@ end)
 
 -- Disable collisions while farming
 RunService.Stepped:Connect(function()
-    if autoFarmCandy and farming and not bag_full then
+    if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
         local character = LocalPlayer.Character
         if character and character:IsDescendantOf(workspace) then
             for _, v in ipairs(character:GetDescendants()) do
@@ -825,48 +745,15 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Manual Reset Function
-local function resetFarmingState()
-    print("[DEBUG] Manually resetting farming state")
-    farming = false
-    bag_full = false
-    resetting = false
-    currentBagAmount = 0
-    visitedPositions = {}
-    collected = 0
-    
-    -- Wait a moment then re-enable if autofarm was on
-    task.wait(1)
-    if autoFarmCandy then
-        farming = true
-        start_position = getHRP().CFrame
-        print("[DEBUG] Farming re-enabled after manual reset")
-    end
-end
-
 -- Improved Character respawn handling
 LocalPlayer.CharacterAdded:Connect(function(char)
-    print("[DEBUG] Character respawned - Resetting all states")
     character = char
     rootPart = char:WaitForChild("HumanoidRootPart")
-    
-    -- Reset all farming states
     visitedPositions = {}
     currentBagAmount = 0
     bag_full = false
     resetting = false
-    collected = 0
-    
     checkPremiumStatus()
-    
-    -- Re-enable farming if it was active
-    if autoFarmCandy then
-        task.wait(2) -- Wait for character to fully load
-        farming = true
-        start_position = getHRP().CFrame
-        print("[DEBUG] Farming re-enabled after character respawn")
-    end
-    
     print("[DEBUG] Character respawned, farming state reset")
 end)
 
@@ -893,6 +780,7 @@ if CoinCollected then
                 
                 -- Stop autofarm when bag is full
                 autoFarmCandy = false
+                autoFarmCoins = false
                 print("[DEBUG] Stopped autofarm")
                 
                 -- Auto fling murderer if enabled (works independently)
@@ -976,6 +864,48 @@ if CoinCollected then
     end)
 end
 
+-- Improved Round Start Handler
+if RoundStart then
+    RoundStart.OnClientEvent:Connect(function(roundTime, playerData)
+        -- Reset farming state
+        currentBagAmount = 0
+        visitedPositions = {}
+        bag_full = false
+        resetting = false
+        
+        -- Set farming to true for the improved system
+        farming = true
+        start_position = getHRP().CFrame
+        
+        print("[DEBUG] Round started, farming enabled")
+        
+        -- Always resume autofarm if it was enabled before (regardless of autoEndRound setting)
+        local wasCandyFarming = autoFarmCandy
+        local wasCoinFarming = autoFarmCoins
+        
+        -- Resume candy autofarm if it was enabled before
+        if wasCandyFarming then
+            autoFarmCandy = true
+            WindUI:Notify({
+                Title = "Round Started!",
+                Content = "Candy autofarm resumed automatically",
+                Icon = "play-circle",
+                Duration = 2
+            })
+        end
+        
+        -- Resume coin autofarm if it was enabled before
+        if wasCoinFarming then
+            autoFarmCoins = true
+            WindUI:Notify({
+                Title = "Round Started!",
+                Content = "Coin autofarm resumed automatically",
+                Icon = "play-circle",
+                Duration = 2
+            })
+        end
+    end)
+end
 
 -- Weapon Dupe Functions
 local function VisualDupe()
@@ -1547,44 +1477,63 @@ do
     })
     
     AutoFarmTab:Section({
-        Title = "🍭 Candy Collection",
+        Title = "Coin & Candy Collection",
         TextSize = 18,
         FontWeight = Enum.FontWeight.SemiBold,
     })
     
     AutoFarmTab:Toggle({
+        Flag = "CoinAutofarm",
+        Title = "Coin Autofarm",
+        Desc = "Automatically collect coins from the map",
+        Default = false,
+        Callback = function(state)
+            autoFarmCoins = state
+            if state then
+                visitedPositions = {}
+                collected = 0
+                WindUI:Notify({ 
+                    Title = "Coin Autofarm", 
+                    Content = "Coin farming started!", 
+                    Icon = "dollar-sign", 
+                    Duration = 3 
+                })
+            else
+                WindUI:Notify({ 
+                    Title = "Coin Autofarm", 
+                    Content = "Coin farming stopped", 
+                    Icon = "x-circle", 
+                    Duration = 3 
+                })
+            end
+        end
+    })
+    
+    AutoFarmTab:Space()
+    
+    AutoFarmTab:Toggle({
         Flag = "CandyAutofarm",
-        Title = "🍭 Candy Autofarm",
-        Desc = "Automatically collect Halloween candy for event rewards",
+        Title = "Candy Autofarm",
+        Desc = "Collect Halloween candy for event rewards",
         Default = false,
         Callback = function(state)
             autoFarmCandy = state
             if state then
-                -- Reset all states when enabling
                 visitedPositions = {}
                 collected = 0
-                currentBagAmount = 0
-                bag_full = false
-                resetting = false
-                farming = true
-                start_position = getHRP().CFrame
-                
                 WindUI:Notify({ 
-                    Title = "🍭 Candy Autofarm", 
+                    Title = "Candy Autofarm", 
                     Content = "Candy farming started!", 
                     Icon = "candy", 
                     Duration = 3 
                 })
-                print("[DEBUG] Candy autofarm enabled - All states reset")
             else
-                farming = false
                 WindUI:Notify({ 
-                    Title = "🍭 Candy Autofarm", 
+                    Title = "Candy Autofarm", 
                     Content = "Candy farming stopped", 
                     Icon = "x-circle", 
                     Duration = 3 
                 })
-                print("[DEBUG] Candy autofarm disabled")
             end
         end
     })
@@ -1593,7 +1542,7 @@ do
     
     AutoFarmTab:Toggle({
         Flag = "AutoEndRound",
-        Title = "🔄 Auto Reset Character",
+        Title = "Auto Reset Character",
         Desc = "Automatically reset character when bag is full",
         Default = false,
         Callback = function(state)
@@ -1604,14 +1553,14 @@ do
             print("[DEBUG] flingMurdererOnFull is now:", flingMurdererOnFull)
             if state then
                 WindUI:Notify({ 
-                    Title = "🔄 Auto Reset Character", 
+                    Title = "Auto Reset Character", 
                     Content = "Will reset character at " .. maxBagCapacity .. " candy", 
                     Icon = "refresh-cw", 
                     Duration = 3 
                 })
             else
                 WindUI:Notify({ 
-                    Title = "🔄 Auto Reset Character", 
+                    Title = "Auto Reset Character", 
                     Content = "Auto reset character disabled", 
                     Icon = "x-circle", 
                     Duration = 3 
@@ -1624,7 +1573,7 @@ do
     
     AutoFarmTab:Toggle({
         Flag = "AutoFlingMurderer",
-        Title = "⚡ Auto Fling Murderer",
+        Title = "Auto Fling Murderer",
         Desc = "Automatically fling murderer when bag is full",
         Default = false,
         Callback = function(state)
@@ -1632,14 +1581,14 @@ do
             print("[DEBUG] Auto Fling Murderer toggle changed to:", state)
             if state then
                 WindUI:Notify({ 
-                    Title = "⚡ Auto Fling Murderer", 
+                    Title = "Auto Fling Murderer", 
                     Content = "Will fling murderer at " .. maxBagCapacity .. " candy", 
                     Icon = "zap", 
                     Duration = 3 
                 })
             else
                 WindUI:Notify({ 
-                    Title = "⚡ Auto Fling Murderer", 
+                    Title = "Auto Fling Murderer", 
                     Content = "Auto fling murderer disabled", 
                     Icon = "x-circle", 
                     Duration = 3 
@@ -1653,7 +1602,7 @@ do
     
     AutoFarmTab:Slider({
         Flag = "FlySpeed",
-        Title = "🚀 Autofarm Speed",
+        Title = "Autofarm Speed",
         Desc = "Adjust collection speed",
         Step = 1,
         Value = {
@@ -1678,7 +1627,7 @@ do
     AutoFarmTab:Space()
     
     AutoFarmTab:Button({
-        Title = "🔄 Reset Counter",
+        Title = "Reset Counter",
         Icon = "refresh-cw",
         Justify = "Center",
         Callback = function()
@@ -1686,7 +1635,7 @@ do
             visitedPositions = {}
             currentBagAmount = 0
             WindUI:Notify({ 
-                Title = "🔄 Counter Reset", 
+                Title = "Counter Reset", 
                 Content = "Collection counter reset!", 
                 Icon = "check-circle", 
                 Duration = 3 
@@ -1696,27 +1645,9 @@ do
     
     AutoFarmTab:Space()
     
-    AutoFarmTab:Button({
-        Title = "🔧 Reset Autofarm",
-        Icon = "wrench",
-        Color = HalloweenColors.Orange,
-        Justify = "Center",
-        Callback = function()
-            resetFarmingState()
-            WindUI:Notify({ 
-                Title = "🔧 Autofarm Reset", 
-                Content = "Autofarm system reset! Toggle off/on if still stuck.", 
-                Icon = "check-circle", 
-                Duration = 4 
-            })
-        end
-    })
-    
-    AutoFarmTab:Space()
-    
 
     AutoFarmTab:Button({
-        Title = "⚡ Fling Murderer",
+        Title = "Fling Murderer",
         Icon = "zap",
         Color = HalloweenColors.Blood,
         Justify = "Center",
@@ -1728,7 +1659,7 @@ do
     AutoFarmTab:Space()
     
     AutoFarmTab:Button({
-        Title = "🌙 Enable Anti-AFK",
+        Title = "Enable Anti-AFK",
         Icon = "moon",
         Color = HalloweenColors.Midnight,
         Justify = "Center",
@@ -1739,14 +1670,14 @@ do
             
             if success then
                 WindUI:Notify({ 
-                    Title = "🌙 Anti-AFK", 
+                    Title = "Anti-AFK", 
                     Content = "Anti-AFK enabled!", 
                     Icon = "check-circle", 
                     Duration = 3 
                 })
             else
                 WindUI:Notify({ 
-                    Title = "🌙 Anti-AFK Error", 
+                    Title = "Anti-AFK Error", 
                     Content = "Failed to load Anti-AFK!", 
                     Icon = "x-circle", 
                     Duration = 5 
@@ -2041,342 +1972,194 @@ end
 -- */  Weapon Spawner Tab  /* --
 do
     local WeaponSpawnerTab = ZovlaneFunctions:Tab({
-        Title = "🔒 Weapon Spawner",
+        Title = "Weapon Spawner",
         Icon = "sword",
     })
     
-    -- Check if user has premium access
-    if not PremiumAccess.WeaponSpawner then
-        WeaponSpawnerTab:Section({
-            Title = "🔒 Premium Feature Locked",
-            TextSize = 20,
-            FontWeight = Enum.FontWeight.Bold,
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Section({
-            Title = "💎 Unlock Weapon Spawner\n\nSpawn any weapon instantly!\nPerfect for testing and collection.\n⚠️ Daily Limit: 3 spawns per day",
-            TextSize = 16,
-            TextTransparency = 0.3,
-            FontWeight = Enum.FontWeight.Medium,
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Button({
-            Title = "💎 Join Discord to Buy - 3000 R$ / $15",
-            Icon = "message-circle",
-            Color = HalloweenColors.Toxic,
-            Justify = "Center",
-            Callback = function()
-                showDiscordPurchaseInstructions("Weapon Spawner", "3000 Robux", "$15 USD")
-            end
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Button({
-            Title = "📋 Copy Discord Link",
-            Icon = "copy",
-            Color = HalloweenColors.Discord,
-            Justify = "Center",
-            Callback = function()
-                setclipboard("https://discord.gg/8EcCWNXSnS")
-                WindUI:Notify({
-                    Title = "📋 Discord Link Copied!",
-                    Content = "Discord invite copied to clipboard!\n\n" ..
-                            "💎 Weapon Spawner: 3000 Robux / $15\n" ..
-                            "⚠️ Daily Limit: 3 spawns per day\n" ..
-                            "⚡ Fast and secure payment!",
-                    Icon = "check-circle",
-                    Duration = 6
-                })
-            end
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Section({
-            Title = "✨ Premium Benefits:\n• Spawn any weapon instantly\n• 3 spawns per day limit\n• Access to exclusive weapons\n• Priority support\n• Daily reset at midnight",
-            TextSize = 14,
-            TextTransparency = 0.4,
-            FontWeight = Enum.FontWeight.Medium,
-        })
-    else
-        -- Premium users get full access
-        WeaponSpawnerTab:Section({
-            Title = "✨ Premium Weapon Spawner",
-            TextSize = 18,
-            FontWeight = Enum.FontWeight.SemiBold,
-        })
-        
-        -- Daily spawn counter
-        WeaponSpawnerTab:Section({
-            Title = "📊 Daily Usage: " .. DailySpawns.Count .. "/" .. DailySpawns.MaxSpawns .. " spawns used",
-            TextSize = 14,
-            TextTransparency = 0.3,
-            FontWeight = Enum.FontWeight.Medium,
-        })
-        
-        local weaponName = ""
-        
-        WeaponSpawnerTab:Input({
-            Flag = "WeaponName",
-        Title = "Weapon Name",
-            Desc = "Enter the name of the weapon",
-            Placeholder = "e.g., CandyBlade, Raygun",
-        Callback = function(text)
-            weaponName = text
-        end
+    WeaponSpawnerTab:Section({
+        Title = "Spawn Weapons",
+        TextSize = 18,
+        FontWeight = Enum.FontWeight.SemiBold,
     })
-
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Button({
-        Title = "✨ Spawn Weapon",
-            Icon = "sparkles",
-            Color = HalloweenColors.Orange,
-            Justify = "Center",
-        Callback = function()
-            if weaponName ~= "" then
-                if canSpawn() then
-                    opencrate(weaponName)
-                    incrementSpawnCount()
-                    WindUI:Notify({
-                        Title = "✨ Weapon Spawned!",
-                        Content = "Successfully spawned: " .. weaponName .. "\n\n" ..
-                                "📊 Daily Usage: " .. DailySpawns.Count .. "/" .. DailySpawns.MaxSpawns,
-                        Icon = "check-circle",
-                        Duration = 4
-                    })
-                else
-                    WindUI:Notify({
-                        Title = "⚠️ Daily Limit Reached",
-                        Content = "You've used all " .. DailySpawns.MaxSpawns .. " daily spawns!\n\n" ..
-                                "⏰ Resets at midnight\n" ..
-                                "💎 Upgrade for unlimited spawns",
-                        Icon = "clock",
-                        Duration = 6
-                    })
-                end
-            else
-                WindUI:Notify({
-                    Title = "Error",
-                        Content = "Please enter a weapon name!",
-                        Icon = "x-circle",
-                        Duration = 3
-                })
-            end
-        end
-    })
-
-        WeaponSpawnerTab:Space({ Columns = 2 })
-        
-        WeaponSpawnerTab:Section({
-            Title = "Quick Spawn Godlies",
-            TextSize = 16,
-            FontWeight = Enum.FontWeight.SemiBold,
-        })
-        
-        WeaponSpawnerTab:Button({
-            Title = "Spawn Raygun (Battlepass)",
-            Icon = "zap",
-            Color = HalloweenColors.Toxic,
-            Callback = function()
-                opencrate("Raygun")
-            end
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Button({
-            Title = "Spawn XenoKnife",
-            Icon = "knife",
-            Color = HalloweenColors.Blood,
-            Callback = function()
-                opencrate("XenoKnife")
-            end
-        })
-        
-        WeaponSpawnerTab:Space()
-        
-        WeaponSpawnerTab:Button({
-            Title = "Spawn XenoGun",
-            Icon = "crosshair",
-            Color = HalloweenColors.DarkPurple,
-            Callback = function()
-                opencrate("XenoGun")
-            end
-        })
+    
+    local weaponName = ""
+    
+    WeaponSpawnerTab:Input({
+        Flag = "WeaponName",
+    Title = "Weapon Name",
+        Desc = "Enter the name of the weapon",
+        Placeholder = "e.g., CandyBlade, Raygun",
+    Callback = function(text)
+        weaponName = text
     end
+})
+
+    WeaponSpawnerTab:Space()
+    
+    WeaponSpawnerTab:Button({
+    Title = "Spawn Weapon",
+        Icon = "sparkles",
+        Color = HalloweenColors.Orange,
+        Justify = "Center",
+    Callback = function()
+        if weaponName ~= "" then
+            opencrate(weaponName)
+        else
+            WindUI:Notify({
+                Title = "Error",
+                    Content = "Please enter a weapon name!",
+                    Icon = "x-circle",
+                    Duration = 3
+            })
+        end
+    end
+})
+
+    WeaponSpawnerTab:Space({ Columns = 2 })
+    
+    WeaponSpawnerTab:Section({
+        Title = "Quick Spawn Godlies",
+        TextSize = 16,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    WeaponSpawnerTab:Button({
+        Title = "Spawn Raygun (Battlepass)",
+        Icon = "zap",
+        Color = HalloweenColors.Toxic,
+        Callback = function()
+            opencrate("Raygun")
+        end
+    })
+    
+    WeaponSpawnerTab:Space()
+    
+    WeaponSpawnerTab:Button({
+        Title = "Spawn XenoKnife",
+        Icon = "knife",
+        Color = HalloweenColors.Blood,
+        Callback = function()
+            opencrate("XenoKnife")
+        end
+    })
+    
+    WeaponSpawnerTab:Space()
+    
+    WeaponSpawnerTab:Button({
+        Title = "Spawn XenoGun",
+        Icon = "crosshair",
+        Color = HalloweenColors.DarkPurple,
+        Callback = function()
+            opencrate("XenoGun")
+        end
+    })
 end
 
 -- */  Weapon Dupe Tab  /* --
 do
     local WeaponDupeTab = ZovlaneFunctions:Tab({
-        Title = "🔒 Weapon Dupe",
+        Title = "Weapon Dupe",
         Icon = "copy",
     })
     
-    -- Check if user has premium access
-    if not PremiumAccess.WeaponDupe then
-        WeaponDupeTab:Section({
-            Title = "🔒 Premium Feature Locked",
-            TextSize = 20,
-            FontWeight = Enum.FontWeight.Bold,
-        })
-        
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Section({
-            Title = "💎 Unlock Weapon Duplication\n\nDuplicate any weapon instantly!\nMultiply your inventory value.",
-            TextSize = 16,
-            TextTransparency = 0.3,
-            FontWeight = Enum.FontWeight.Medium,
-        })
-        
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Button({
-            Title = "💎 Join Discord to Buy - 2500 R$ / $10",
-            Icon = "message-circle",
-            Color = HalloweenColors.Toxic,
-            Justify = "Center",
-            Callback = function()
-                showDiscordPurchaseInstructions("Weapon Dupe", "2500 Robux", "$10 USD")
-            end
-        })
-        
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Button({
-            Title = "📋 Copy Discord Link",
-            Icon = "copy",
-            Color = HalloweenColors.Discord,
-            Justify = "Center",
-            Callback = function()
-                setclipboard("https://discord.gg/8EcCWNXSnS")
-                WindUI:Notify({
-                    Title = "📋 Discord Link Copied!",
-                    Content = "Discord invite copied to clipboard!\n\n" ..
-                            "💎 Weapon Dupe: 2500 Robux / $10\n" ..
-                            "⚡ Fast and secure payment!",
-                    Icon = "check-circle",
-                    Duration = 5
-                })
-            end
-        })
-        
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Section({
-            Title = "✨ Premium Benefits:\n• Duplicate any weapon\n• Bulk inventory duplication\n• No detection risk\n• Instant processing\n• Unlimited usage",
-            TextSize = 14,
-            TextTransparency = 0.4,
-            FontWeight = Enum.FontWeight.Medium,
-        })
-    else
-        -- Premium users get full access
-        WeaponDupeTab:Section({
-            Title = "✨ Premium Weapon Duplication",
-            TextSize = 18,
-            FontWeight = Enum.FontWeight.SemiBold,
-        })
-        
-        WeaponDupeTab:Input({
-            Flag = "DupeWeaponName",
-        Title = "Weapon Name",
-            Desc = "Enter weapon to duplicate",
-            Placeholder = "e.g., Lightbringer",
-        Callback = function(text)
-            WeaponName = text
-        end
+    WeaponDupeTab:Section({
+        Title = "Single Weapon Duplication",
+        TextSize = 18,
+        FontWeight = Enum.FontWeight.SemiBold,
     })
-
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Input({
-            Flag = "DupeAmount",
-        Title = "Dupe Amount",
-            Desc = "How many times to duplicate",
-            Placeholder = "e.g., 5",
-            Value = "1",
-        Callback = function(text)
-            FunctionCall = tonumber(text) or 1
-        end
-    })
-
-        WeaponDupeTab:Space()
-        
-        WeaponDupeTab:Button({
-            Title = "✨ Start Duplication",
-            Icon = "layers",
-            Color = HalloweenColors.DarkOrange,
-            Justify = "Center",
-        Callback = function()
-            if WeaponName == "" then
-                WindUI:Notify({ 
-                    Title = "Weapon Dupe Error", 
-                        Content = "Please enter a weapon name!", 
-                    Icon = "x-circle", 
-                    Duration = 5 
-                })
-                return
-            end
-            
-            WindUI:Notify({ 
-                Title = "Weapon Dupe", 
-                    Content = "Duplicating " .. WeaponName .. " " .. FunctionCall .. " times...", 
-                    Icon = "loader", 
-                    Duration = 3 
-            })
-            
-            for i = 1, FunctionCall do
-                VisualDupe()
-            end
-            
-            WindUI:Notify({ 
-                    Title = "Dupe Complete", 
-                    Content = "Successfully duplicated " .. WeaponName .. "!", 
-                Icon = "check-circle", 
-                Duration = 5 
-            })
-        end
-    })
-
-        WeaponDupeTab:Space({ Columns = 3 })
-        
-        WeaponDupeTab:Section({
-            Title = "Inventory Duplication",
-            TextSize = 18,
-            FontWeight = Enum.FontWeight.SemiBold,
-        })
-        
-        WeaponDupeTab:Button({
-            Title = "✨ Dupe Entire Inventory",
-            Icon = "package",
-            Color = HalloweenColors.Witch,
-            Justify = "Center",
-        Callback = function()
-            WindUI:Notify({ 
-                Title = "Inventory Dupe", 
-                    Content = "Duplicating entire inventory...", 
-                    Icon = "loader", 
-                    Duration = 3 
-            })
-            
-            InventoryDupe()
-            
-            WindUI:Notify({ 
-                Title = "Inventory Dupe Complete", 
-                    Content = "Successfully duplicated inventory!", 
-                Icon = "check-circle", 
-                Duration = 5 
-            })
-        end
-    })
+    
+    WeaponDupeTab:Input({
+        Flag = "DupeWeaponName",
+    Title = "Weapon Name",
+        Desc = "Enter weapon to duplicate",
+        Placeholder = "e.g., Lightbringer",
+    Callback = function(text)
+        WeaponName = text
     end
+})
+
+    WeaponDupeTab:Space()
+    
+    WeaponDupeTab:Input({
+        Flag = "DupeAmount",
+    Title = "Dupe Amount",
+        Desc = "How many times to duplicate",
+        Placeholder = "e.g., 5",
+        Value = "1",
+    Callback = function(text)
+        FunctionCall = tonumber(text) or 1
+    end
+})
+
+    WeaponDupeTab:Space()
+    
+    WeaponDupeTab:Button({
+        Title = "Start Duplication",
+        Icon = "layers",
+        Color = HalloweenColors.DarkOrange,
+        Justify = "Center",
+    Callback = function()
+        if WeaponName == "" then
+            WindUI:Notify({ 
+                Title = "Weapon Dupe Error", 
+                    Content = "Please enter a weapon name!", 
+                Icon = "x-circle", 
+                Duration = 5 
+            })
+            return
+        end
+        
+        WindUI:Notify({ 
+            Title = "Weapon Dupe", 
+                Content = "Duplicating " .. WeaponName .. " " .. FunctionCall .. " times...", 
+                Icon = "loader", 
+                Duration = 3 
+        })
+        
+        for i = 1, FunctionCall do
+            VisualDupe()
+        end
+        
+        WindUI:Notify({ 
+                Title = "Dupe Complete", 
+                Content = "Successfully duplicated " .. WeaponName .. "!", 
+            Icon = "check-circle", 
+            Duration = 5 
+        })
+    end
+})
+
+    WeaponDupeTab:Space({ Columns = 3 })
+    
+    WeaponDupeTab:Section({
+        Title = "Inventory Duplication",
+        TextSize = 18,
+        FontWeight = Enum.FontWeight.SemiBold,
+    })
+    
+    WeaponDupeTab:Button({
+        Title = "Dupe Entire Inventory",
+        Icon = "package",
+        Color = HalloweenColors.Witch,
+        Justify = "Center",
+    Callback = function()
+        WindUI:Notify({ 
+            Title = "Inventory Dupe", 
+                Content = "Duplicating entire inventory...", 
+                Icon = "loader", 
+                Duration = 3 
+        })
+        
+        InventoryDupe()
+        
+        WindUI:Notify({ 
+            Title = "Inventory Dupe Complete", 
+                Content = "Successfully duplicated inventory!", 
+            Icon = "check-circle", 
+            Duration = 5 
+        })
+    end
+})
 end
 
 -- */  Visual Weapons Tab  /* --
@@ -2931,29 +2714,6 @@ do
     
     InfoTab:Space()
     
-    -- Premium Status Section
-    InfoTab:Section({
-        Title = "💎 Premium Status",
-        TextSize = 18,
-        FontWeight = Enum.FontWeight.SemiBold,
-    })
-    
-    local premiumStatus = "🔒 Free User"
-    if PremiumAccess.AllFeatures then
-        premiumStatus = "✨ Premium User - Full Access"
-    elseif PremiumAccess.WeaponSpawner or PremiumAccess.WeaponDupe then
-        premiumStatus = "💎 Partial Premium - Some Features Unlocked"
-    end
-    
-    InfoTab:Section({
-        Title = premiumStatus,
-        TextSize = 16,
-        TextTransparency = 0.2,
-        FontWeight = Enum.FontWeight.Medium,
-    })
-    
-    InfoTab:Space()
-    
     InfoTab:Section({
         Title = "Enhanced MM2 script with comprehensive features including ESP, auto-farming, weapon duplication, role-specific functions, and much more! Perfect for Murder Mystery 2 players looking for an edge.",
         TextSize = 16,
@@ -2981,53 +2741,26 @@ do
     InfoTab:Space({ Columns = 3 })
     
     InfoTab:Section({
-        Title = "💎 Premium Features & Support",
+        Title = "Community & Support",
         TextSize = 18,
         FontWeight = Enum.FontWeight.SemiBold,
     })
     
-        InfoTab:Button({
-        Title = "💎 Join Discord for Premium",
-        Icon = "crown",
-        Color = HalloweenColors.Toxic,
-        Justify = "Center",
-        Callback = function()
-            setclipboard("https://discord.gg/8EcCWNXSnS")
-            WindUI:Notify({ 
-                Title = "💎 Discord Premium", 
-                Content = "Discord invite copied!\n\n" ..
-                        "🔒 Premium Features Available:\n" ..
-                        "• Weapon Spawner: 3000 Robux / $15\n" ..
-                        "• Weapon Dupe: 2500 Robux / $10\n" ..
-                        "• Daily Limit: 3 spawns per day\n\n" ..
-                        "Join Discord to purchase!", 
-                Icon = "message-circle", 
-                Duration = 10 
-            })
-        end
-    })
-    
-    InfoTab:Space()
-    
     InfoTab:Button({
-        Title = "📋 Copy Discord Link",
-        Icon = "copy",
-        Color = HalloweenColors.Discord,
+    Title = "Copy Discord Invite",
+        Icon = "message-circle",
+        Color = HalloweenColors.DarkPurple,
         Justify = "Center",
-        Callback = function()
-            setclipboard("https://discord.gg/8EcCWNXSnS")
-            WindUI:Notify({ 
-                Title = "📋 Discord Link Copied!", 
-                Content = "Discord invite copied to clipboard!\n\n" ..
-                        "💎 Premium Features Available:\n" ..
-                        "• Weapon Spawner: 3000 Robux / $15\n" ..
-                        "• Weapon Dupe: 2500 Robux / $10\n\n" ..
-                        "Join Discord to purchase!", 
-                Icon = "check-circle", 
-                Duration = 6 
-            })
-        end
-    })
+    Callback = function()
+        setclipboard("https://discord.gg/8EcCWNXSnS")
+        WindUI:Notify({ 
+                Title = "Discord", 
+                Content = "Invite copied to clipboard!", 
+            Icon = "check-circle", 
+            Duration = 3 
+        })
+    end
+})
 
     InfoTab:Space()
     
