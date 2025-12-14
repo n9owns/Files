@@ -130,7 +130,6 @@ local Window = WindUI:CreateWindow({
 })
 
 -- Auto Farm Variables
-local autoFarmCoins = false
 local autoFarmSnowflakes = false
 local autoEndRound = false
 local flingMurdererOnFull = false
@@ -148,7 +147,6 @@ local farming = false
 local bag_full = false
 local resetting = false
 local start_position = nil
-local farmingCoins = false
 local farmingSnowflakes = false
 
 -- Check for premium gamepass
@@ -632,12 +630,12 @@ if RoundEnd then
     end)
 end
 
--- Improved coin detection function
-local function get_nearest_coin()
+-- Improved snowflake detection function (uses coin detection method)
+local function get_nearest_snowflake()
     local hrp = getHRP()
     local closest, dist = nil, math.huge
     
-    -- Search through workspace children for CoinContainer
+    -- Search through workspace children for CoinContainer (same method as coin autofarm)
     for _, m in pairs(workspace:GetChildren()) do
         if m:FindFirstChild("CoinContainer") then
             for _, coin in pairs(m.CoinContainer:GetChildren()) do
@@ -654,52 +652,14 @@ local function get_nearest_coin()
     return closest, dist
 end
 
--- Improved snowflake detection function
-local function get_nearest_snowflake()
-    local hrp = getHRP()
-    local closest, dist = nil, math.huge
-    
-    -- First try CoinContainer method
-    for _, m in pairs(workspace:GetChildren()) do
-        if m:FindFirstChild("CoinContainer") then
-            for _, coin in pairs(m.CoinContainer:GetChildren()) do
-                if coin:IsA("BasePart") and coin:GetAttribute("CoinID") == "Snowflake" and coin:FindFirstChild("TouchInterest") then
-                    local d = (hrp.Position - coin.Position).Magnitude
-                    if d < dist then 
-                        closest, dist = coin, d 
-                        end
-                    end
-                end
-        end
-    end
-    
-    -- Fallback to workspace search
-    if not closest then
-                for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name == "snowflake" then
-                local d = (hrp.Position - obj.Position).Magnitude
-                if d < dist then 
-                    closest, dist = obj, d 
-                        end
-                    end
-                end
-            end
-            
-    return closest, dist
-end
-
 -- Improved Auto Farm Loop
 task.spawn(function()
     while true do
-        if (autoFarmCoins or autoFarmSnowflakes) and farming and not bag_full then
+        if autoFarmSnowflakes and farming and not bag_full then
             local hrp = getHRP()
             local coin, dist = nil, math.huge
             
-            if autoFarmSnowflakes then
-                coin, dist = get_nearest_snowflake()
-            elseif autoFarmCoins then
-                coin, dist = get_nearest_coin()
-            end
+            coin, dist = get_nearest_snowflake()
             
             if coin then
                 if dist > 150 then
@@ -715,7 +675,7 @@ task.spawn(function()
                     -- Wait until coin is collected or farming stops
                     repeat 
                         task.wait() 
-                    until not coin:FindFirstChild("TouchInterest") or not farming or not (autoFarmCoins or autoFarmSnowflakes)
+                    until not coin:FindFirstChild("TouchInterest") or not farming or not autoFarmSnowflakes
                     
                     tween:Cancel()
                 end
@@ -733,7 +693,7 @@ end)
 
 -- Disable collisions while farming
 RunService.Stepped:Connect(function()
-    if (autoFarmCoins or autoFarmSnowflakes) and farming and not bag_full then
+    if autoFarmSnowflakes and farming and not bag_full then
         local character = LocalPlayer.Character
         if character and character:IsDescendantOf(workspace) then
             for _, v in ipairs(character:GetDescendants()) do
@@ -780,7 +740,6 @@ if CoinCollected then
                 
                 -- Stop autofarm when bag is full
                 autoFarmSnowflakes = false
-                autoFarmCoins = false
                 print("[DEBUG] Stopped autofarm")
                 
                 -- Auto fling murderer if enabled (works independently)
@@ -881,7 +840,6 @@ if RoundStart then
         
         -- Always resume autofarm if it was enabled before (regardless of autoEndRound setting)
         local wasSnowflakeFarming = autoFarmSnowflakes
-        local wasCoinFarming = autoFarmCoins
         
         -- Resume snowflake autofarm if it was enabled before
         if wasSnowflakeFarming then
@@ -889,17 +847,6 @@ if RoundStart then
             WindUI:Notify({
                 Title = "Round Started!",
                 Content = "Snowflake autofarm resumed automatically",
-                Icon = "play-circle",
-                Duration = 2
-            })
-        end
-        
-        -- Resume coin autofarm if it was enabled before
-        if wasCoinFarming then
-            autoFarmCoins = true
-            WindUI:Notify({
-                Title = "Round Started!",
-                Content = "Coin autofarm resumed automatically",
                 Icon = "play-circle",
                 Duration = 2
             })
@@ -1477,39 +1424,10 @@ do
     })
     
     AutoFarmTab:Section({
-        Title = "Coin & Snowflake Collection",
+        Title = "Snowflake Collection",
         TextSize = 18,
         FontWeight = Enum.FontWeight.SemiBold,
     })
-    
-    AutoFarmTab:Toggle({
-        Flag = "CoinAutofarm",
-        Title = "Coin Autofarm",
-        Desc = "Automatically collect coins from the map",
-        Default = false,
-        Callback = function(state)
-            autoFarmCoins = state
-            if state then
-                visitedPositions = {}
-                collected = 0
-                WindUI:Notify({ 
-                    Title = "Coin Autofarm", 
-                    Content = "Coin farming started!", 
-                    Icon = "dollar-sign", 
-                    Duration = 3 
-                })
-            else
-                WindUI:Notify({ 
-                    Title = "Coin Autofarm", 
-                    Content = "Coin farming stopped", 
-                    Icon = "x-circle", 
-                    Duration = 3 
-                })
-            end
-        end
-    })
-    
-    AutoFarmTab:Space()
     
     AutoFarmTab:Toggle({
         Flag = "SnowflakeAutofarm",
