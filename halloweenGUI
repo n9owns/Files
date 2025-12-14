@@ -1,6 +1,6 @@
 --[[
-    Zovlane Hub - Halloween Spooky Edition
-    Enhanced MM2 Script with Spooky Features!
+    Zovlane Hub - Christmas Holiday Edition
+    Enhanced MM2 Script with Festive Features!
 ]]
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -22,22 +22,22 @@ local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 
--- Halloween Color Theme
-local HalloweenColors = {
-    Orange = Color3.fromHex("#FF6B1A"),
-    DarkOrange = Color3.fromHex("#FF4500"),
-    Purple = Color3.fromHex("#9D4EDD"),
-    DarkPurple = Color3.fromHex("#5A189A"),
-    Blood = Color3.fromHex("#8B0000"),
-    Ghost = Color3.fromHex("#E0E0E0"),
-    Pumpkin = Color3.fromHex("#FF7518"),
-    Witch = Color3.fromHex("#6B2E8A"),
-    Midnight = Color3.fromHex("#0D0221"),
-    Toxic = Color3.fromHex("#39FF14"),
+-- Christmas Color Theme
+local ChristmasColors = {
+    Red = Color3.fromHex("#DC143C"),
+    DarkRed = Color3.fromHex("#8B0000"),
+    Green = Color3.fromHex("#228B22"),
+    DarkGreen = Color3.fromHex("#006400"),
+    Gold = Color3.fromHex("#FFD700"),
+    White = Color3.fromHex("#FFFFFF"),
+    Snow = Color3.fromHex("#FFFAFA"),
+    Blue = Color3.fromHex("#1E90FF"),
+    Silver = Color3.fromHex("#C0C0C0"),
+    Frost = Color3.fromHex("#E0F7FA"),
 }
 
--- Spooky Gradient Function
-local function spookyGradient(text, color1, color2)
+-- Christmas Gradient Function
+local function christmasGradient(text, color1, color2)
     local result = ""
     local length = #text
     for i = 1, length do
@@ -54,9 +54,9 @@ end
 -- Welcome Popup
 local Confirmed = false
 WindUI:Popup({
-    Title = spookyGradient("Zovlane Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
-    Icon = "skull",
-    Content = (spookyGradient("Best MM2 Script - Halloween Edition!", HalloweenColors.Orange, HalloweenColors.DarkPurple) .. "<br/>" .. spookyGradient("Join our discord server! Daily Giveaways", HalloweenColors.Toxic, HalloweenColors.Purple)),
+    Title = christmasGradient("Zovlane Hub", ChristmasColors.Red, ChristmasColors.Green),
+    Icon = "snowflake",
+    Content = (christmasGradient("Best MM2 Script - Christmas Edition!", ChristmasColors.Gold, ChristmasColors.DarkGreen) .. "<br/>" .. christmasGradient("Join our discord server! Daily Giveaways", ChristmasColors.Blue, ChristmasColors.Green)),
     Buttons = {
         {
             Title = "Exit",
@@ -78,7 +78,7 @@ WindUI:Popup({
             Variant = "Secondary"
         },
         {
-            Title = spookyGradient("Continue", HalloweenColors.Toxic, HalloweenColors.Orange),
+            Title = christmasGradient("Continue", ChristmasColors.Blue, ChristmasColors.Gold),
             Callback = function()
                 Confirmed = true
             end,
@@ -91,10 +91,10 @@ repeat task.wait() until Confirmed
 
 -- */  Window  /* --
 local Window = WindUI:CreateWindow({
-    Title = spookyGradient("Zovlane Hub", HalloweenColors.Pumpkin, HalloweenColors.Purple),
-    Author = "by Zovlane Scripts • Halloween Edition",
+    Title = christmasGradient("Zovlane Hub", ChristmasColors.Red, ChristmasColors.Green),
+    Author = "by Zovlane Scripts • Christmas Edition",
     Folder = "zovlanehub",
-    Icon = "skull",
+    Icon = "snowflake",
     NewElements = true,
     
     Size = UDim2.new(0, 580, 0, 480),
@@ -117,8 +117,8 @@ local Window = WindUI:CreateWindow({
         OnlyMobile = false,
         
         Color = ColorSequence.new(
-            HalloweenColors.Pumpkin, 
-            HalloweenColors.Purple
+            ChristmasColors.Red, 
+            ChristmasColors.Green
         )
     },
     
@@ -131,7 +131,7 @@ local Window = WindUI:CreateWindow({
 
 -- Auto Farm Variables
 local autoFarmCoins = false
-local autoFarmCandy = false
+local autoFarmSnowflakes = false
 local autoEndRound = false
 local flingMurdererOnFull = false
 local autoFlingMurderer = false
@@ -149,7 +149,7 @@ local bag_full = false
 local resetting = false
 local start_position = nil
 local farmingCoins = false
-local farmingCandy = false
+local farmingSnowflakes = false
 
 -- Check for premium gamepass
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -288,9 +288,9 @@ local function updateESP()
 
             if highlightEnabled then
                 if target then
-                    local color = role == "Murderer" and HalloweenColors.Blood or 
-                                 role == "Sheriff" and HalloweenColors.Toxic or 
-                                 HalloweenColors.Orange
+                    local color = role == "Murderer" and ChristmasColors.DarkRed or 
+                                 role == "Sheriff" and ChristmasColors.Blue or 
+                                 ChristmasColors.Gold
                     createHighlight(player.Character, color)
                 else
                     removeHighlight(player.Character)
@@ -300,9 +300,9 @@ local function updateESP()
             end
 
             if lineESPEnabled and target then
-                local color = role == "Murderer" and HalloweenColors.Blood or 
-                             role == "Sheriff" and HalloweenColors.Toxic or 
-                             HalloweenColors.Orange
+                local color = role == "Murderer" and ChristmasColors.DarkRed or 
+                             role == "Sheriff" and ChristmasColors.Blue or 
+                             ChristmasColors.Gold
                 if not tracers[player] then 
                     createTracer(player, color) 
                 else
@@ -654,8 +654,8 @@ local function get_nearest_coin()
     return closest, dist
 end
 
--- Improved candy detection function
-local function get_nearest_candy()
+-- Improved snowflake detection function
+local function get_nearest_snowflake()
     local hrp = getHRP()
     local closest, dist = nil, math.huge
     
@@ -663,7 +663,7 @@ local function get_nearest_candy()
     for _, m in pairs(workspace:GetChildren()) do
         if m:FindFirstChild("CoinContainer") then
             for _, coin in pairs(m.CoinContainer:GetChildren()) do
-                if coin:IsA("BasePart") and coin:GetAttribute("CoinID") == "Candy" and coin:FindFirstChild("TouchInterest") then
+                if coin:IsA("BasePart") and coin:GetAttribute("CoinID") == "Snowflake" and coin:FindFirstChild("TouchInterest") then
                     local d = (hrp.Position - coin.Position).Magnitude
                     if d < dist then 
                         closest, dist = coin, d 
@@ -676,7 +676,7 @@ local function get_nearest_candy()
     -- Fallback to workspace search
     if not closest then
                 for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name == "candy" then
+            if obj:IsA("BasePart") and obj.Name == "snowflake" then
                 local d = (hrp.Position - obj.Position).Magnitude
                 if d < dist then 
                     closest, dist = obj, d 
@@ -691,12 +691,12 @@ end
 -- Improved Auto Farm Loop
 task.spawn(function()
     while true do
-        if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
+        if (autoFarmCoins or autoFarmSnowflakes) and farming and not bag_full then
             local hrp = getHRP()
             local coin, dist = nil, math.huge
             
-            if autoFarmCandy then
-                coin, dist = get_nearest_candy()
+            if autoFarmSnowflakes then
+                coin, dist = get_nearest_snowflake()
             elseif autoFarmCoins then
                 coin, dist = get_nearest_coin()
             end
@@ -715,7 +715,7 @@ task.spawn(function()
                     -- Wait until coin is collected or farming stops
                     repeat 
                         task.wait() 
-                    until not coin:FindFirstChild("TouchInterest") or not farming or not (autoFarmCoins or autoFarmCandy)
+                    until not coin:FindFirstChild("TouchInterest") or not farming or not (autoFarmCoins or autoFarmSnowflakes)
                     
                     tween:Cancel()
                 end
@@ -733,7 +733,7 @@ end)
 
 -- Disable collisions while farming
 RunService.Stepped:Connect(function()
-    if (autoFarmCoins or autoFarmCandy) and farming and not bag_full then
+    if (autoFarmCoins or autoFarmSnowflakes) and farming and not bag_full then
         local character = LocalPlayer.Character
         if character and character:IsDescendantOf(workspace) then
             for _, v in ipairs(character:GetDescendants()) do
@@ -760,9 +760,9 @@ end)
 -- Improved Auto Reset System
 if CoinCollected then
     CoinCollected.OnClientEvent:Connect(function(coinType, newAmount, oldAmount, additionalData)
-        if coinType == "Candy" then
+        if coinType == "Snowflake" then
             currentBagAmount = newAmount
-            print("[DEBUG] Collected candy! Current amount:", currentBagAmount)
+            print("[DEBUG] Collected snowflake! Current amount:", currentBagAmount)
             
             -- Check if bag is full
             if currentBagAmount >= maxBagCapacity then
@@ -773,13 +773,13 @@ if CoinCollected then
                 
                 WindUI:Notify({
                     Title = "Bag Full!",
-                    Content = "Candy bag is full (" .. currentBagAmount .. "/" .. maxBagCapacity .. ")",
+                    Content = "Snowflake bag is full (" .. currentBagAmount .. "/" .. maxBagCapacity .. ")",
                     Icon = "package",
                     Duration = 3
                 })
                 
                 -- Stop autofarm when bag is full
-                autoFarmCandy = false
+                autoFarmSnowflakes = false
                 autoFarmCoins = false
                 print("[DEBUG] Stopped autofarm")
                 
@@ -880,15 +880,15 @@ if RoundStart then
         print("[DEBUG] Round started, farming enabled")
         
         -- Always resume autofarm if it was enabled before (regardless of autoEndRound setting)
-        local wasCandyFarming = autoFarmCandy
+        local wasSnowflakeFarming = autoFarmSnowflakes
         local wasCoinFarming = autoFarmCoins
         
-        -- Resume candy autofarm if it was enabled before
-        if wasCandyFarming then
-            autoFarmCandy = true
+        -- Resume snowflake autofarm if it was enabled before
+        if wasSnowflakeFarming then
+            autoFarmSnowflakes = true
             WindUI:Notify({
                 Title = "Round Started!",
-                Content = "Candy autofarm resumed automatically",
+                Content = "Snowflake autofarm resumed automatically",
                 Icon = "play-circle",
                 Duration = 2
             })
@@ -912,7 +912,7 @@ local function VisualDupe()
     wait(math.random(1, 3))
     for i,v in pairs(UIPath.Weapons.Items.Container:GetChildren()) do
         for i,v in pairs(v.Container:GetChildren()) do
-            if v.Name == "Christmas" or v.Name == "Halloween" then
+            if v.Name == "Christmas" or v.Name == "Snowflake" then
                 for i,v in pairs(v.Container:GetChildren()) do
                     if v:IsA("Frame") and v.ItemName.Label.Text == WeaponName then
                         local amount = v.Container.Amount.Text
@@ -947,7 +947,7 @@ local function InventoryDupe()
     wait(math.random(3, 5))
     for i,v in pairs(UIPath.Weapons.Items.Container:GetChildren()) do
         for i,v in pairs(v.Container:GetChildren()) do
-            if v.Name == "Christmas" or v.Name == "Halloween" then
+            if v.Name == "Christmas" or v.Name == "Snowflake" then
                 for i,v in pairs(v.Container:GetChildren()) do
                     if v:IsA("Frame") then
                         if v.ItemName.Label.Text ~= "Default Knife" and v.ItemName.Label.Text ~= "Default Gun" then
@@ -1400,7 +1400,7 @@ end
 -- ========================================
 
 local ZovlaneFunctions = Window:Section({
-    Title = spookyGradient("Zovlane Functions", HalloweenColors.Pumpkin, HalloweenColors.Purple),
+    Title = christmasGradient("Zovlane Functions", ChristmasColors.Red, ChristmasColors.Green),
     Icon = "flame",
     Opened = true,
 })
@@ -1477,7 +1477,7 @@ do
     })
     
     AutoFarmTab:Section({
-        Title = "Coin & Candy Collection",
+        Title = "Coin & Snowflake Collection",
         TextSize = 18,
         FontWeight = Enum.FontWeight.SemiBold,
     })
@@ -1512,25 +1512,25 @@ do
     AutoFarmTab:Space()
     
     AutoFarmTab:Toggle({
-        Flag = "CandyAutofarm",
-        Title = "Candy Autofarm",
-        Desc = "Collect Halloween candy for event rewards",
+        Flag = "SnowflakeAutofarm",
+        Title = "Snowflake Autofarm",
+        Desc = "Collect Christmas snowflakes for event rewards",
         Default = false,
         Callback = function(state)
-            autoFarmCandy = state
+            autoFarmSnowflakes = state
             if state then
                 visitedPositions = {}
                 collected = 0
                 WindUI:Notify({ 
-                    Title = "Candy Autofarm", 
-                    Content = "Candy farming started!", 
-                    Icon = "candy", 
+                    Title = "Snowflake Autofarm", 
+                    Content = "Snowflake farming started!", 
+                    Icon = "snowflake", 
                     Duration = 3 
                 })
             else
                 WindUI:Notify({ 
-                    Title = "Candy Autofarm", 
-                    Content = "Candy farming stopped", 
+                    Title = "Snowflake Autofarm", 
+                    Content = "Snowflake farming stopped", 
                     Icon = "x-circle", 
                     Duration = 3 
                 })
@@ -1554,7 +1554,7 @@ do
             if state then
                 WindUI:Notify({ 
                     Title = "Auto Reset Character", 
-                    Content = "Will reset character at " .. maxBagCapacity .. " candy", 
+                    Content = "Will reset character at " .. maxBagCapacity .. " snowflakes", 
                     Icon = "refresh-cw", 
                     Duration = 3 
                 })
@@ -1582,7 +1582,7 @@ do
             if state then
                 WindUI:Notify({ 
                     Title = "Auto Fling Murderer", 
-                    Content = "Will fling murderer at " .. maxBagCapacity .. " candy", 
+                    Content = "Will fling murderer at " .. maxBagCapacity .. " snowflakes", 
                     Icon = "zap", 
                     Duration = 3 
                 })
@@ -1649,7 +1649,7 @@ do
     AutoFarmTab:Button({
         Title = "Fling Murderer",
         Icon = "zap",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
         Callback = function()
             flingMurdererFunction()
@@ -1661,7 +1661,7 @@ do
     AutoFarmTab:Button({
         Title = "Enable Anti-AFK",
         Icon = "moon",
-        Color = HalloweenColors.Midnight,
+        Color = ChristmasColors.DarkGreen,
         Justify = "Center",
         Callback = function()
             local success = pcall(function()
@@ -1763,7 +1763,7 @@ do
     CharacterTab:Button({
         Title = "Reset to Default",
         Icon = "rotate-ccw",
-        Color = HalloweenColors.Orange,
+        Color = ChristmasColors.Gold,
         Justify = "Center",
         Callback = function()
             CharacterSettings.WalkSpeed.Value = 16
@@ -1823,7 +1823,7 @@ local function updateTeleportPlayers()
     TeleportTab:Button({
         Title = "Teleport to Player",
         Icon = "zap",
-        Color = HalloweenColors.Purple,
+        Color = ChristmasColors.Green,
         Justify = "Center",
         Callback = function()
             if teleportTarget and teleportTarget.Character then
@@ -1877,7 +1877,7 @@ end
     TeleportTab:Button({
         Title = "Teleport to Murderer",
         Icon = "knife",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
         Callback = function()
             local murderer = nil
@@ -1925,7 +1925,7 @@ end
     TeleportTab:Button({
         Title = "Teleport to Sheriff",
         Icon = "shield",
-        Color = HalloweenColors.Toxic,
+        Color = ChristmasColors.Blue,
         Justify = "Center",
         Callback = function()
             local sheriff = nil
@@ -1988,7 +1988,7 @@ do
         Flag = "WeaponName",
     Title = "Weapon Name",
         Desc = "Enter the name of the weapon",
-        Placeholder = "e.g., CandyBlade, Raygun",
+        Placeholder = "e.g., SnowflakeBlade, Raygun",
     Callback = function(text)
         weaponName = text
     end
@@ -1999,7 +1999,7 @@ do
     WeaponSpawnerTab:Button({
     Title = "Spawn Weapon",
         Icon = "sparkles",
-        Color = HalloweenColors.Orange,
+        Color = ChristmasColors.Gold,
         Justify = "Center",
     Callback = function()
         if weaponName ~= "" then
@@ -2026,7 +2026,7 @@ do
     WeaponSpawnerTab:Button({
         Title = "Spawn Raygun (Battlepass)",
         Icon = "zap",
-        Color = HalloweenColors.Toxic,
+        Color = ChristmasColors.Blue,
         Callback = function()
             opencrate("Raygun")
         end
@@ -2037,7 +2037,7 @@ do
     WeaponSpawnerTab:Button({
         Title = "Spawn XenoKnife",
         Icon = "knife",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Callback = function()
             opencrate("XenoKnife")
         end
@@ -2048,7 +2048,7 @@ do
     WeaponSpawnerTab:Button({
         Title = "Spawn XenoGun",
         Icon = "crosshair",
-        Color = HalloweenColors.DarkPurple,
+        Color = ChristmasColors.DarkGreen,
         Callback = function()
             opencrate("XenoGun")
         end
@@ -2096,7 +2096,7 @@ do
     WeaponDupeTab:Button({
         Title = "Start Duplication",
         Icon = "layers",
-        Color = HalloweenColors.DarkOrange,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
     Callback = function()
         if WeaponName == "" then
@@ -2140,7 +2140,7 @@ do
     WeaponDupeTab:Button({
         Title = "Dupe Entire Inventory",
         Icon = "package",
-        Color = HalloweenColors.Witch,
+        Color = ChristmasColors.Green,
         Justify = "Center",
     Callback = function()
         WindUI:Notify({ 
@@ -2202,7 +2202,7 @@ do
     VisualTab:Button({
         Title = "Change Visual",
         Icon = "wand-2",
-        Color = HalloweenColors.Purple,
+        Color = ChristmasColors.Green,
         Justify = "Center",
     Callback = function()
         if fromWeapon == "" or toWeapon == "" then
@@ -2303,7 +2303,7 @@ local visualTradeEnabled = false
     TradeScamTab:Button({
         Title = "Activate Visual Trade",
         Icon = "alert-triangle",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
     Callback = function()
         if not visualTradeEnabled then
@@ -2336,7 +2336,7 @@ do
     UtilitiesTab:Button({
         Title = "Enable Anti-AFK",
         Icon = "moon",
-        Color = HalloweenColors.Midnight,
+        Color = ChristmasColors.DarkGreen,
         Justify = "Center",
         Callback = function()
             local success = pcall(function()
@@ -2366,7 +2366,7 @@ do
     UtilitiesTab:Button({
         Title = "Server Lagger",
         Icon = "zap",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
     Callback = function()
         WindUI:Notify({ 
@@ -2441,7 +2441,7 @@ do
     InnocentTab:Button({
         Title = "Grab Gun Manually",
         Icon = "hand",
-        Color = HalloweenColors.Toxic,
+        Color = ChristmasColors.Blue,
         Justify = "Center",
     Callback = function()
             GrabGun()
@@ -2485,7 +2485,7 @@ do
         WindUI:Notify({
                     Title = "Kill All",
                     Content = "Attack sequence started!",
-                    Icon = "skull",
+                    Icon = "snowflake",
             Duration = 2
                 })
             else
@@ -2522,7 +2522,7 @@ do
     MurdererTab:Button({
     Title = "Equip Knife",
         Icon = "knife",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
     Callback = function()
         if equipKnife() then
@@ -2582,7 +2582,7 @@ do
     SheriffTab:Button({
         Title = "Shoot Murderer",
         Icon = "crosshair",
-        Color = HalloweenColors.Toxic,
+        Color = ChristmasColors.Blue,
         Justify = "Center",
         Callback = function()
             ShootMurderer()
@@ -2663,7 +2663,7 @@ do
     SettingsTab:Button({
         Title = "Save Config",
         Icon = "save",
-        Color = HalloweenColors.Toxic,
+        Color = ChristmasColors.Blue,
         Justify = "Center",
         Callback = function()
             Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
@@ -2683,7 +2683,7 @@ do
     SettingsTab:Button({
         Title = "Load Config",
         Icon = "upload",
-        Color = HalloweenColors.Purple,
+        Color = ChristmasColors.Green,
         Justify = "Center",
         Callback = function()
             Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
@@ -2749,7 +2749,7 @@ do
     InfoTab:Button({
     Title = "Copy Discord Invite",
         Icon = "message-circle",
-        Color = HalloweenColors.DarkPurple,
+        Color = ChristmasColors.DarkGreen,
         Justify = "Center",
     Callback = function()
         setclipboard("https://discord.gg/8EcCWNXSnS")
@@ -2767,7 +2767,7 @@ do
     InfoTab:Button({
         Title = "YouTube Channel",
         Icon = "youtube",
-        Color = HalloweenColors.Blood,
+        Color = ChristmasColors.DarkRed,
         Justify = "Center",
             Callback = function()
             setclipboard("https://www.youtube.com/@zovlanexd")
@@ -2785,7 +2785,7 @@ do
     InfoTab:Button({
         Title = "TikTok Profile",
         Icon = "music",
-        Color = HalloweenColors.Pumpkin,
+        Color = ChristmasColors.Red,
         Justify = "Center",
             Callback = function()
             setclipboard("http://tiktok.com/@zovlanexd")
@@ -2878,9 +2878,9 @@ Window.CurrentConfig:Save()
 
 -- Welcome notification
 WindUI:Notify({
-    Title = spookyGradient("Zovlane Hub Loaded!", HalloweenColors.Pumpkin, HalloweenColors.Purple),
-    Content = "Welcome to the Halloween Edition! Press G to toggle GUI.",
-    Icon = "skull",
+    Title = christmasGradient("Zovlane Hub Loaded!", ChristmasColors.Red, ChristmasColors.Green),
+    Content = "Welcome to the Christmas Edition! Press G to toggle GUI.",
+    Icon = "snowflake",
     Duration = 5
 })
 
